@@ -20,6 +20,9 @@
 #include <signal.h>
 #include <string.h>
 
+#include <sys/stat.h> // for open()
+#include <fcntl.h> 
+
 #include <vector>
 
 // although it is good habit, you don't have to type 'std' before many objects by including this line
