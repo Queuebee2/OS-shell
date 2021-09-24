@@ -310,13 +310,39 @@ int executeDualCommandSimple(Expression &expression)
 
 // handles expression with exactly 2 pipes
 int executeTripleCommandSimple(Expression &expression)
-{
+{	
+	cout << "support for 3 commands not implemented yet" << endl;
+	return 0;
 }
 
+// handle 3 or more commands
+// and hopefully eventually generalize to work with any amount of commands.
 int executeManyCommands(Expression &expression)
 {	
 	// setup pipes
+	int pipe[2*expression.commands.size()];
 
+	vector<pid_t> cpids;
+	/*
+	for command in commands:
+		cpid=fork()
+		cpids.push(cpid);
+
+		if its the first command, hook up pipe[1] to STDOUT
+		elif its the last command, hook up pipe[i*2] to STDIN
+		else hook up pipe[i*2] to STDIN and pipe[(i*2)+1] to STDOUT
+	
+	for fd in pipes:
+		close(fd) ... so close(fd[i])
+	
+	for cpid in cpids:
+		waitpid(cpid, NULL, 0);
+	
+	...think of >, <, & exceptional cases
+	*/
+
+	cout << "support for more than 3 commands not implemented yet"  << endl;
+	return 0;
 }
 
 int executeExpression(Expression &expression)
@@ -332,6 +358,8 @@ int executeExpression(Expression &expression)
 		return 0;
 	}
 
+	// this should be replaced with a single, generic method to
+	// solve all cases, maybe(?)
 	switch (expression.commands.size())
 	{
 	// case 0 should already be handled.
