@@ -182,7 +182,7 @@ int normal(bool showPrompt)
 
 // framework for executing "date | tail -c 5" using raw commands
 // two processes are created, and connected to each other
-int step1(bool showPrompt)
+int demoTwoCommands(bool showPrompt)
 {
 	// create communication channel shared between the two processes
 	int channel[2];
