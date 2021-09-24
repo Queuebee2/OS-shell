@@ -150,6 +150,28 @@ Expression parseCommandLine(string commandLine)
 	return expression;
 }
 
+// handle exit and chande dir.
+int handleInternalCommands(Expression &expression){
+	for (const auto &command : expression.commands)
+	{
+		for (const auto &part : command.parts)
+		{
+			if (part.compare("exit") == 0)
+			{
+				cout << "Bye!" << endl;
+				flush(cout);
+				exit(0);
+			} else if (part.compare("cd") == 0){
+				if (chdir(command.parts.at(1).c_str()) != 0){
+					cerr << "chdir failed";
+				}
+				return -2;
+			}
+		}
+	}
+	return 0;
+}
+
 int executeExpression(Expression &expression)
 {
 	// Check for empty expression
@@ -157,7 +179,11 @@ int executeExpression(Expression &expression)
 		return EINVAL;
 
 	// Handle intern commands (like 'cd' and 'exit')
-
+	int status = handleInternalCommands(expression);
+	if (status == -2) // cd happened 
+	{
+		return 0;
+	}
 	// External commands, executed with fork():
 	// Loop over all commandos, and connect the output and input of the forked processes
 
@@ -310,8 +336,10 @@ int demoThreeCommands(bool showPrompt)
 
 int shell(bool showPrompt)
 {
+	// main shell loop
+	return normal(showPrompt);
 
-	/// return normal(showPrompt);
+	/// available demo's 
 	/// return demoTwoCommands(showPrompt);
-	return demoThreeCommands(showPrompt);
+	/// return demoThreeCommands(showPrompt);
 }
