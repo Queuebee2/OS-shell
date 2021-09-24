@@ -186,13 +186,13 @@ int demoTwoCommands(bool showPrompt)
 {
 	// create communication channel shared between the two processes
 	int channel[2];
-	
-	// create a pipe 
+
+	// create a pipe
 	// channel[0] refers to the read end of the pipe.
 	// channel[1] refers to the write end of the pipe.
 	if (pipe(channel) != 0)
 	{
-		cout << "failed to create pipe\n";
+		cout << "Failed to create pipe\n";
 	}
 
 	pid_t child1 = fork();
@@ -201,13 +201,14 @@ int demoTwoCommands(bool showPrompt)
 		// redirect standard output (STDOUT_FILENO) to the input of the shared communication channel
 		dup2(channel[1], STDOUT_FILENO);
 		// free non used resources (because otherwise, they stay opened)
-		close(channel[1]);close(channel[0]);
+		close(channel[1]);
+		close(channel[0]);
 
 		Command cmd = {{string("date")}};
 		executeCommand(cmd);
 
-		abort(); // if the executable is not found, we should abort. 
-		// ( otherwise this child will go live it's own unintended life )
+		abort(); // if the executable is not found, we should abort.
+				 // ( otherwise this child will go live it's own unintended life )
 	}
 
 	pid_t child2 = fork();
@@ -215,7 +216,8 @@ int demoTwoCommands(bool showPrompt)
 	{
 		// redirect the output of the shared communication channel to the standard input (STDIN_FILENO).
 		dup2(channel[0], STDIN_FILENO);
-		close(channel[1]);close(channel[0]);
+		close(channel[1]);
+		close(channel[0]);
 
 		Command cmd = {{string("tail"), string("-c"), string("5")}};
 		executeCommand(cmd);
@@ -232,10 +234,84 @@ int demoTwoCommands(bool showPrompt)
 	return 0;
 }
 
+int demoThreeCommands(bool showPrompt)
+{
+	cout << "Demo with three commands. \n";
+	cout << "executing: date | tail -c 15 | tail c 5 \n";
+
+	int fd[2];
+	int fd2[2];
+
+	if (pipe(fd) != 0)
+	{
+		cout << "Failed to create pipe!\n";
+	}
+
+	if (pipe(fd2) != 0)
+	{
+		cout << "Failed to create pipe!\n";
+	}
+
+	pid_t cpid_1 = fork();
+	if (cpid_1 == 0)
+	{ // child 1 reads input from the 'date' command
+		Command cmd = {{string("date")}};
+		// set stdout to write end of pipe
+		dup2(fd[1], STDOUT_FILENO);
+		close(fd[0]);
+		close(fd[1]);
+		close(fd2[0]);
+		close(fd2[1]);
+		executeCommand(cmd);
+	}
+
+	pid_t cpid_2 = fork();
+	if (cpid_2 == 0)
+	{	// child 2 reads input from the previous child
+		// and into the next pipe for the next child
+		Command cmd = {{string("tail"), string("-c"), string("15")}};
+
+		dup2(fd[0], STDIN_FILENO);
+		dup2(fd2[1], STDOUT_FILENO);
+
+		close(fd[0]);
+		close(fd[1]);
+		close(fd2[0]);
+		close(fd2[1]);
+		executeCommand(cmd);
+	}
+
+	pid_t cpid_3 = fork();
+	if (cpid_3 == 0)
+	{	// last child receives output from child 2 from the
+		// read-end of the second pipe, fd2[0]
+		Command cmd = {{string("tail"), string("-c"), string("7")}};
+		dup2(fd2[0], STDIN_FILENO);
+		close(fd[0]);
+		close(fd[1]);
+		close(fd2[0]);
+		close(fd2[1]);
+		executeCommand(cmd);
+	}
+
+	close(fd[0]);
+	close(fd[1]);
+	close(fd2[0]);
+	close(fd2[1]);
+
+	waitpid(cpid_1, NULL, 0);
+	waitpid(cpid_2, NULL, 0);
+	waitpid(cpid_3, NULL, 0);
+
+	flush(cout);
+	cout << "DEMO DONE" << endl;
+	return 0;
+}
+
 int shell(bool showPrompt)
 {
 
 	/// return normal(showPrompt);
-
-	return step1(showPrompt);
+	/// return demoTwoCommands(showPrompt);
+	return demoThreeCommands(showPrompt);
 }
