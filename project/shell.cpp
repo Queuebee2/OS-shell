@@ -92,16 +92,66 @@ int executeCommand(const Command &cmd)
 	return retval;
 }
 
-// shows a user prompt in the terminal showing the current working dir and a $
-void displayPrompt()
+void displayCustomPrompt(char *dir)
 {
-	char buffer[512];
-	char *dir = getcwd(buffer, sizeof(buffer));
+	/*
+  TODO : 
+  	- move settings out
+  	- add commands to change settings
+  	- add presets ;D
+  */
+	string user_path(dir);
+
+	vector<string> commands = splitString(user_path, '/');
+	int YELLOW = 33;
+	int SEPCOLOR = YELLOW;
+	int OMEGACOLOR = 35;
+	int k;
+	for (int i = 0; i < commands.size(); i++)
+	{
+		k = (i % 6) + 31;
+		if (k == SEPCOLOR)
+		{
+			k++;
+		}
+		if (i < 2 || i > (commands.size() - 3))
+		{
+			cout << "\e[" << k << "m" << commands[i];
+		}
+		else
+		{
+			cout << "\e[" << k << "m"
+				 << "..";
+		}
+		if (i == 0 || i == 1 || i == commands.size() - 3 || i == commands.size() - 2)
+		{
+			cout << "\e[" << SEPCOLOR << "m"
+				 << "->";
+		}
+	}
+	cout << "\e[" << SEPCOLOR << "m Ω "
+		 << "\e[" << OMEGACOLOR << "m";
+}
+
+void displayStandardPrompt(char *dir)
+{
 	if (dir)
 	{
 		cout << "\e[32m" << dir << "\e[39m"; // the strings starting with '\e' are escape codes, that the terminal application interpets in this case as "set color to green"/"set color to default"
 	}
 	cout << "$ ";
+}
+
+// shows a user prompt in the terminal showing the current working dir and a $
+void displayPrompt()
+{
+	char buffer[512];
+	char *dir = getcwd(buffer, sizeof(buffer));
+
+	// old displayStandardPrompt(dir);
+
+	displayCustomPrompt(dir);
+
 	flush(cout);
 }
 
