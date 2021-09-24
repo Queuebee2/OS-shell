@@ -185,31 +185,48 @@ int normal(bool showPrompt)
 int step1(bool showPrompt)
 {
 	// create communication channel shared between the two processes
-	// ...
+	int channel[2];
+	
+	// create a pipe 
+	// channel[0] refers to the read end of the pipe.
+	// channel[1] refers to the write end of the pipe.
+	if (pipe(channel) != 0)
+	{
+		cout << "failed to create pipe\n";
+	}
 
 	pid_t child1 = fork();
 	if (child1 == 0)
 	{
 		// redirect standard output (STDOUT_FILENO) to the input of the shared communication channel
-		// free non used resources (why?)
+		dup2(channel[1], STDOUT_FILENO);
+		// free non used resources (because otherwise, they stay opened)
+		close(channel[1]);close(channel[0]);
+
 		Command cmd = {{string("date")}};
 		executeCommand(cmd);
-		// display nice warning that the executable could not be found
-		abort(); // if the executable is not found, we should abort. (why?)
+
+		abort(); // if the executable is not found, we should abort. 
+		// ( otherwise this child will go live it's own unintended life )
 	}
 
 	pid_t child2 = fork();
 	if (child2 == 0)
 	{
 		// redirect the output of the shared communication channel to the standard input (STDIN_FILENO).
-		// free non used resources (why?)
+		dup2(channel[0], STDIN_FILENO);
+		close(channel[1]);close(channel[0]);
+
 		Command cmd = {{string("tail"), string("-c"), string("5")}};
 		executeCommand(cmd);
-		abort(); // if the executable is not found, we should abort. (why?)
+		abort();
 	}
 
-	// free non used resources (why?)
-	// wait on child processes to finish (why both?)
+	// don't forget to close the pipes in the parent process!
+	close(channel[0]);
+	close(channel[1]);
+
+	// wait on ALL child processes to finish
 	waitpid(child1, nullptr, 0);
 	waitpid(child2, nullptr, 0);
 	return 0;
@@ -218,7 +235,7 @@ int step1(bool showPrompt)
 int shell(bool showPrompt)
 {
 
-	return normal(showPrompt);
+	/// return normal(showPrompt);
 
-	// return step1(showPrompt);
+	return step1(showPrompt);
 }
