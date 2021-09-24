@@ -34,6 +34,8 @@ struct Expression
 	bool background = false;
 };
 
+const int CHANGED_DIR_FLAG = 65;
+
 // Parses a string to form a vector of arguments. The seperator is a space char (' ').
 vector<string> splitString(const string &str, char delimiter = ' ')
 {
@@ -200,8 +202,35 @@ Expression parseCommandLine(string commandLine)
 	return expression;
 }
 
+// handle a 'cd' command, only handles a single viable path.
+int handleChangeDirectory(Command cmd)
+{
+	if (cmd.parts.size() != 2)
+	{
+		cout << "Wrong amount of arguments for cd " << endl;
+		cout << "Usage: cd <path>" << endl;
+		return CHANGED_DIR_FLAG;
+	}
+
+	int errcode = chdir(cmd.parts.at(1).c_str());
+	if (errcode != 0)
+	{
+		cerr << "chdir failed " << errcode << endl;
+		switch (errcode)
+		{
+		case -1: // 'Unknown error'
+			cerr << "the given path was probably invalid." << endl;
+			break;
+		default:
+			cerr << strerror(errcode) << endl;
+		}
+	}
+	return CHANGED_DIR_FLAG;
+}
+
 // handle exit and chande dir.
-int handleInternalCommands(Expression &expression){
+int handleInternalCommands(Expression &expression)
+{
 	for (const auto &command : expression.commands)
 	{
 		for (const auto &part : command.parts)
@@ -211,15 +240,83 @@ int handleInternalCommands(Expression &expression){
 				cout << "Bye!" << endl;
 				flush(cout);
 				exit(0);
-			} else if (part.compare("cd") == 0){
-				if (chdir(command.parts.at(1).c_str()) != 0){
-					cerr << "chdir failed";
-				}
-				return -2;
 			}
+		}
+		if (command.parts[0].compare("cd") == 0)
+		{
+			return handleChangeDirectory(command);
 		}
 	}
 	return 0;
+}
+
+// handles only 1 simple command and exactly 0 pipes.
+int executeSingleCommandSimple(Expression &expression)
+{
+
+	pid_t cpid = fork();
+	if (cpid == 0)
+	{
+		int rc = executeCommand(expression.commands[0]);
+		// if code reaches here, error has occurred. handle and abort.
+		cerr << "executeSingleCommandSimple errored:\n"
+			 << strerror(rc) << endl;
+		abort();
+	}
+	waitpid(cpid, NULL, 0);
+	return 0;
+}
+
+// handles expression with exactly 1 pipe
+// see demoTwoCommands() for docstrings
+int executeDualCommandSimple(Expression &expression)
+{
+	int channel[2];
+
+	if (pipe(channel) != 0)
+	{
+		cout << "Failed to create pipe\n";
+	}
+
+	pid_t child1 = fork();
+	if (child1 == 0)
+	{
+		dup2(channel[1], STDOUT_FILENO);
+		close(channel[1]);
+		close(channel[0]);
+		Command cmd = expression.commands[0];
+		executeCommand(cmd);
+		abort();
+	}
+
+	pid_t child2 = fork();
+	if (child2 == 0)
+	{
+		dup2(channel[0], STDIN_FILENO);
+		close(channel[1]);
+		close(channel[0]);
+		Command cmd = expression.commands[1];
+		executeCommand(cmd);
+		abort();
+	}
+
+	close(channel[0]);
+	close(channel[1]);
+
+	waitpid(child1, nullptr, 0);
+	waitpid(child2, nullptr, 0);
+	return 0;
+}
+
+// handles expression with exactly 2 pipes
+int executeTripleCommandSimple(Expression &expression)
+{
+}
+
+int executeManyCommands(Expression &expression)
+{	
+	// setup pipes
+
 }
 
 int executeExpression(Expression &expression)
@@ -228,17 +325,28 @@ int executeExpression(Expression &expression)
 	if (expression.commands.size() == 0)
 		return EINVAL;
 
-	// Handle intern commands (like 'cd' and 'exit')
+	// Handle internal commands (like 'cd' and 'exit')
 	int status = handleInternalCommands(expression);
-	if (status == -2) // cd happened 
+	if (status == CHANGED_DIR_FLAG) // cd happened
 	{
 		return 0;
 	}
-	// External commands, executed with fork():
-	// Loop over all commandos, and connect the output and input of the forked processes
 
-	// For now, we just execute the first command in the expression. Disable.
-	executeCommand(expression.commands[0]);
+	switch (expression.commands.size())
+	{
+	// case 0 should already be handled.
+	case 1:
+		executeSingleCommandSimple(expression);
+		break;
+	case 2:
+		executeDualCommandSimple(expression);
+		break;
+	case 3:
+		executeTripleCommandSimple(expression);
+		break;
+	default:
+		executeManyCommands(expression);
+	}
 
 	return 0;
 }
@@ -284,7 +392,7 @@ int demoTwoCommands(bool showPrompt)
 		executeCommand(cmd);
 
 		abort(); // if the executable is not found, we should abort.
-				 // ( otherwise this child will go live it's own unintended life )
+			// ( otherwise this child will go live it's own unintended life )
 	}
 
 	pid_t child2 = fork();
@@ -343,7 +451,7 @@ int demoThreeCommands(bool showPrompt)
 
 	pid_t cpid_2 = fork();
 	if (cpid_2 == 0)
-	{	// child 2 reads input from the previous child
+	{ // child 2 reads input from the previous child
 		// and into the next pipe for the next child
 		Command cmd = {{string("tail"), string("-c"), string("15")}};
 
@@ -359,7 +467,7 @@ int demoThreeCommands(bool showPrompt)
 
 	pid_t cpid_3 = fork();
 	if (cpid_3 == 0)
-	{	// last child receives output from child 2 from the
+	{ // last child receives output from child 2 from the
 		// read-end of the second pipe, fd2[0]
 		Command cmd = {{string("tail"), string("-c"), string("7")}};
 		dup2(fd2[0], STDIN_FILENO);
@@ -389,7 +497,7 @@ int shell(bool showPrompt)
 	// main shell loop
 	return normal(showPrompt);
 
-	/// available demo's 
+	/// available demo's
 	/// return demoTwoCommands(showPrompt);
 	/// return demoThreeCommands(showPrompt);
 }
