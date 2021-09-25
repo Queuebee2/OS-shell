@@ -19,6 +19,11 @@
 
 #include <vector>
 
+// thanks to https://stackoverflow.com/a/14256296/6934388
+#define DEBUGMODE 1
+#define DEBUG(x) do {  if (DEBUGMODE) { std::cerr << x << std::endl; } } while (0)
+#define DEBUG2(x) do { if (DEBUGMODE) { std::cerr << #x << ": " << x << std::endl; } } while (0)
+
 using namespace std;
 
 struct Command
