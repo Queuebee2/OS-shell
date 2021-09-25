@@ -315,34 +315,61 @@ int executeTripleCommandSimple(Expression &expression)
 	return 0;
 }
 
-// handle 3 or more commands
-// and hopefully eventually generalize to work with any amount of commands.
-int executeManyCommands(Expression &expression)
-{	
-	// setup pipes
-	int pipe[2*expression.commands.size()];
 
+int executeManyCommands(Expression &expression){
+	int amt_pipes = expression.commands.size()-1;
+	int pipes[2*amt_pipes];
+
+	// create pipes in advance, is this problematic?
+	// what would be a smarter way to do this?
+	for (int i = 0; i < 2*amt_pipes; i++){
+		if (pipe(pipes+(i*2)) != 0){
+			cerr << "piping failed" << endl;
+		}
+	}
+
+	pid_t cpid;
 	vector<pid_t> cpids;
-	/*
-	for command in commands:
-		cpid=fork()
-		cpids.push(cpid);
+	// note that if there's only one command, this wont run
+	for (int i = 0; i < expression.commands.size(); i++){
+		 
+		if ((cpid = fork()) == 0){
+			// child i
+			if (i == 0){
+				// first child keeps stdin open
+				dup2(pipes[i+1], STDOUT_FILENO);
+			} else if (i == amt_pipes) {
+				// last child keeps stdout open
+				dup2(pipes[2+(2*i)], STDIN_FILENO);
+			} else {
+				// all childs between frist and last
+				// connect pipe[i] read to pipe[i+1] write
+				dup2(pipes[(2*i)], STDIN_FILENO);
+				dup2(pipes[2+(2*i)+1], STDOUT_FILENO);
+			}
+			// close pipes
+			for (int i = 0; i < 2*amt_pipes; i++){
+				close(pipes[i]);
+			}
+			executeCommand(expression.commands[i]);
+			abort(); // if executeCommand fails, abort child.
+			// TODO: more error handling
+		}
+		cpids.push_back(cpid);
+	}
 
-		if its the first command, hook up pipe[1] to STDOUT
-		elif its the last command, hook up pipe[i*2] to STDIN
-		else hook up pipe[i*2] to STDIN and pipe[(i*2)+1] to STDOUT
-	
-	for fd in pipes:
-		close(fd) ... so close(fd[i])
-	
-	for cpid in cpids:
-		waitpid(cpid, NULL, 0);
-	
-	...think of >, <, & exceptional cases
-	*/
+	// close pipes in parent
+	for (int i = 0; i < 2*amt_pipes; i++){
+		close(pipes[i]);
+	}
 
-	cout << "support for more than 3 commands not implemented yet"  << endl;
+	// wait for pids
+	for (auto pid : cpids){
+		waitpid(pid, NULL, 0);
+	}
+
 	return 0;
+
 }
 
 int executeExpression(Expression &expression)
@@ -523,7 +550,32 @@ int demoThreeCommands(bool showPrompt)
 int shell(bool showPrompt)
 {
 	// main shell loop
-	return normal(showPrompt);
+	// return normal(showPrompt);
+
+
+
+	// testArea
+	Command cmdDate = {{string("date")}};
+	Command cmdTail1 = {{string("tail"), string("-c"), string("15")}};
+	Command cmdTail2 = {{string("tail"), string("-c"), string("7")}};
+	Command cmdTail3 = {{string("tail"), string("-c"), string("3")}};
+	Expression a, b, c;
+	a.commands = {{ {cmdDate}  }};
+	
+	executeManyCommands(a); // date 
+
+	b.commands = {{ {cmdDate} , {cmdTail1}, {cmdTail2}, {cmdTail3} }};
+
+	executeManyCommands(b);
+
+
+	c.commands = {{ {cmdDate} , {cmdTail1},  }};
+
+	executeManyCommands(c);
+
+
+	executeManyCommands(c);
+
 
 	/// available demo's
 	/// return demoTwoCommands(showPrompt);
