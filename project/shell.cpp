@@ -41,6 +41,8 @@ struct Expression
 
 const int CHANGED_DIR_FLAG = 65;
 
+
+
 // Parses a string to form a vector of arguments. The seperator is a space char (' ').
 vector<string> splitString(const string& str, char delimiter = ' ')
 {
@@ -177,6 +179,7 @@ int handleChangeDirectory(Command cmd)
 			cerr << "the given path was probably invalid." << endl;
 			break;
 		default:
+			cerr << "cd error:" << endl;
 			cerr << strerror(errcode) << endl;
 		}
 	}
@@ -265,36 +268,74 @@ int executeDualCommandSimple(Expression& expression)
 
 int executeManyCommandsSinglePipe(Expression& expression)
 {
-	int LAST = expression.commands.size() - 1;
+	int AMT_COMMANDS = expression.commands.size();
+	int LAST = AMT_COMMANDS - 1;
 	int pipefd[2];
+	int inputfd, outputfd;
+
+	// I don't know c++, so i dont know a 'better' way to do this right now.
+	int FileInputModeFlag;
+	int FileOutputModeFlag;
+	if (expression.inputFromFile.empty() == 0 &&
+		expression.outputToFile.empty() == 0 &&
+		expression.inputFromFile.compare(expression.outputToFile) == 0)
+	{	// if both input and output files are the same
+		FileInputModeFlag = O_RDWR;
+		FileOutputModeFlag = O_RDWR;
+	}
+	else {
+		FileInputModeFlag = O_RDONLY;
+		FileOutputModeFlag = O_RDONLY;
+	}
 
 	pid_t cpid;
 	pid_t cpids[expression.commands.size()];
 
-	int input = STDIN_FILENO;
+	if (expression.inputFromFile.empty() == 0) {
+		// if an input file is given, create a filedescriptor and set it as input
+		inputfd = open(expression.inputFromFile.c_str(), FileInputModeFlag);
+		DEBUG("Created inputfd " << inputfd << " for " << expression.inputFromFile.c_str());
+		// TODO : what other flags are NEEDED, which ones COULD we handle?
+	}
+	else {
+		inputfd = STDIN_FILENO;
+	}
 
-	for (int i = 0; i < expression.commands.size(); i++)
+	for (int i = 0; i < AMT_COMMANDS; i++)
 	{
 		if (i != LAST)
 		{
 			// if theres more processes to 
 			// be started, we need pipes to
 			// redirect their I/O fds
-			pipe(pipefd);
+			if (pipe(pipefd) != 0)
+			{
+				// todo (?) better error handling
+				cerr << "Failed to create pipe!\n";
+				abort();
+			}
 		}
 
 		cpid = fork();
+		if (cpid < 0) {
+			cerr << strerror(cpid) << "\nfork failed" << endl;
+			abort();
+		}
+
 		if (cpid == 0)
 		{
-			if (input != STDIN_FILENO)
+
+			DEBUG("cpid " << getpid() << " started with input: " << inputfd);
+			if (inputfd != STDIN_FILENO)
 			{
 				// (skips first child)
 				// replace childs stdin with output from
 				// previous pipe
-				dup2(input, STDIN_FILENO);
+				dup2(inputfd, STDIN_FILENO);
 				// clear resources
-				close(input);
+				close(inputfd);
 			}
+
 			if (i != LAST)
 			{	// last child should output
 				// to stdout, so should not replace
@@ -302,34 +343,44 @@ int executeManyCommandsSinglePipe(Expression& expression)
 				// redirect their Stdout
 				// input of next pipe
 				dup2(pipefd[1], STDOUT_FILENO);
-				// close remaining resources
 				close(pipefd[1]);
-				close(pipefd[0]);
 			}
 
-			// (ERROR LOGGING?)
-			// cerr << getpid() << " executing ";
-			// for (auto part : expression.commands[i].parts)
-			// {
-			// 	cerr << part << " ";
-			// }
-			// cerr << endl;
-			executeCommand(expression.commands[i]);
-			exit(1); // todo error handle.
+
+			// if an outputfile is defined
+			if (i == LAST && expression.outputToFile.empty() == 0) {
+				// open a fd for the output file in write or read/write mode
+				// not sure if its the right option to do this here, instead of
+				// above the whole for-loop
+				outputfd = open(expression.inputFromFile.c_str(), FileOutputModeFlag);
+
+				dup2(outputfd, STDOUT_FILENO);
+				close(outputfd);
+			}
+
+			// close remaining resources
+			close(pipefd[1]);
+			close(pipefd[0]);
+
+			int errcode = executeCommand(expression.commands[i]);
+			if (errcode != 0) {
+			cerr << getpid() << " encountered bad command: ";
+			for (auto part : expression.commands[i].parts)
+			{
+				cerr << part << " ";
+			}
+			cerr << endl;
+			}
+			abort();
+
 		}
 		else
-		{
-			// parent
-			if (i != LAST)
-			{
-				// parent resets the output of
-				// the pipe that has been made
-				// to be input of next child
-				dup2(pipefd[0], input);
-			}
-			// now we need to clear the remaining open
-			// pipe ends for the parent
-			close(pipefd[0]);
+		{   // now we need to clear the remaining open
+			// close the previous input, which is used
+			close(inputfd);
+			// make the new input the output of the pipe we have
+			inputfd = pipefd[0];
+			// close the write end of this pipe
 			close(pipefd[1]);
 		}
 		// administration
@@ -337,23 +388,30 @@ int executeManyCommandsSinglePipe(Expression& expression)
 		cpids[i] = cpid;
 	}
 
+	// close last reading pipe in parent
+	close(pipefd[0]);
+
 	// wait for children to finish their processing
 	// (skips if expression.background=true)
 	if (!expression.background)
 	{
 		for (auto p : cpids)
 		{
-			//cerr << "waiting for " << p << endl;
+			DEBUG("waiting for pid: " << p);
 			if (p != 0)
 			{
 				waitpid(p, NULL, 0);
 			}
-			// else
-			// {
-			// 	cerr << "Encountered pid = 0 error" << endl;
-			// }
+			else
+			{
+				cerr << "Encountered pid = 0 error" << endl;
+				return 1;
+			}
 		}
+		DEBUG("waited for all pid, returning");
 	}
+	
+	return 0;
 }
 
 int executeExpression(Expression& expression)
@@ -369,9 +427,11 @@ int executeExpression(Expression& expression)
 		return 0;
 	}
 
-	executeManyCommandsSinglePipe(expression);
-
-
+	int rc = executeManyCommandsSinglePipe(expression);
+	if (rc != 0 ){
+		cerr << "executeCommandSingePipe failed" << endl;
+		cerr << strerror (rc) << endl;
+	}
 	return 0;
 }
 
@@ -382,9 +442,12 @@ int normal(bool showPrompt)
 		string commandLine = requestCommandLine(showPrompt);
 		Expression expression = parseCommandLine(commandLine);
 		int rc = executeExpression(expression);
-		if (rc != 0)
+		if (rc != 0){
+			cerr << "mainloop received error\n";
 			cerr << strerror(rc) << endl;
+		}
 	}
+	cerr << "cin.notsogoodanymore()\n";
 	return 0;
 }
 
@@ -450,7 +513,8 @@ int demoThreeCommands(bool showPrompt)
 	// fd[0] refers to the read end of the pipe.
 	// fd[1] refers to the write end of the pipe.
 	int fd[2]; // fd == filedescriptor == int
-	int fd2[2];
+	int fd2[2]; //unused
+	int input = STDIN_FILENO;
 
 	if (pipe(fd) != 0)
 	{
@@ -477,35 +541,53 @@ int demoThreeCommands(bool showPrompt)
 		executeCommand(cmd);
 	}
 
+	cout << input << "  was input  1" << endl;
+	input = fd[0];
+	// instead of line above would this be better??
+	// input = dup(fd[0]);
+	// close(fd[0]);
+
+	close(fd[1]); // THIS )*(#$@U&(*@Y(FY(YHF(Y#(*FY(* YH#(*YF((&T&^(*T@(*&)ER(&!%@^RE&(!@VBE(&^!@%E(&^!@VRBE*^%@!%E^&(!@%G*#^@!%#!*@^#V&@!(^V%#(!&^@V#%^F&!(@^#$%V(&!@^%#GD(B&^!@G#%(I&!@F^G#%D(!@#^B*F^&!@%#VF%$(&%!@R$#*^&!@%G%#DB(&!@^%#$VB(!@&&^G#TBDUI!@^%#RVB@!&^O#BRI*^%!@#CV(&^ !@V%#)(&!@^%#S!@(&BV%#(@!^ &#V%()!@&^#G%BS(@!&#%^BIQ&@^#TRNCF!@#(*^%$#TF!^T(@FDC$D(^!@TRFC$(^@Y!TCV$)(U@Y!TFV$@!(UYTFV$)(!@&^T$F@!&)(^F$@!(VF$(@!UYG$FVOU@F!YGV$YUF!@UYGFO$U*OYGF@!*)UYGI$*)YG!@*)YGT$!@*)YU$&*(UY@!(&Y_$(*&Y!@_(_&*$Y!@(*_&Y$(*_&Y@!(_*&Y$(_!@*&Y$(_*&Y!@(_*&Y@!$(*_Y&(_*Y&@!$(_*Y@!$(*Y@!(*Y$(Y*@!$GU&O*&^O*&!@^&$*^O*$&^V@!)*&!^@$*)&!@^$)*&@!^)$*@!&^$)*&!@$^)!@*B&$^)!@*&^$
+
+	cout << fd[0] << "  was pipe 0 " << endl;
+	cout << input << "  was input " << endl;
+	pipe(fd);
+	cout << fd[0] << "  is pipe 0 " << endl;
+	cout << input << "  is input " << endl;
+
 	pid_t cpid_2 = fork();
 	if (cpid_2 == 0)
 	{ // child 2 reads input from the previous child
 	 // and into the next pipe for the next child
 		Command cmd = { {string("tail"), string("-c"), string("15")} };
 
-		dup2(fd[0], STDIN_FILENO);
-		dup2(fd2[1], STDOUT_FILENO);
-
+		dup2(input, STDIN_FILENO);
+		dup2(fd[1], STDOUT_FILENO);
+		close(input);
 		close(fd[0]);
 		close(fd[1]);
 		close(fd2[0]);
 		close(fd2[1]);
 		executeCommand(cmd);
 	}
+
+	input = fd[0];
+	close(fd[1]);
 
 	pid_t cpid_3 = fork();
 	if (cpid_3 == 0)
 	{ // last child receives output from child 2 from the
 	 // read-end of the second pipe, fd2[0]
 		Command cmd = { {string("tail"), string("-c"), string("7")} };
-		dup2(fd2[0], STDIN_FILENO);
+		dup2(input, STDIN_FILENO);
+		close(input);
 		close(fd[0]);
 		close(fd[1]);
 		close(fd2[0]);
 		close(fd2[1]);
 		executeCommand(cmd);
 	}
-
+	close(input);
 	close(fd[0]);
 	close(fd[1]);
 	close(fd2[0]);
@@ -524,7 +606,6 @@ int shell(bool showPrompt)
 {
 	// main shell loop
 	return normal(showPrompt);
-
 	// // testArea
 	// Command cmdDate = {{string("date")}};
 	// Command cmdTail1 = {{string("tail"), string("-c"), string("15")}};
@@ -550,5 +631,5 @@ int shell(bool showPrompt)
 
 	/// available demo's
 	/// return demoTwoCommands(showPrompt);
-	// return demoThreeCommands(showPrompt);
+	//return demoThreeCommands(showPrompt);
 }
