@@ -352,8 +352,9 @@ int executeManyCommandsSinglePipe(Expression& expression)
 				// open a fd for the output file in write or read/write mode
 				// not sure if its the right option to do this here, instead of
 				// above the whole for-loop
+				
 				outputfd = open(expression.inputFromFile.c_str(), FileOutputModeFlag);
-
+				DEBUG("Created outputfd: " << outputfd);
 				dup2(outputfd, STDOUT_FILENO);
 				close(outputfd);
 			}
@@ -375,17 +376,18 @@ int executeManyCommandsSinglePipe(Expression& expression)
 
 		}
 		else
+			// parent part of the loop
 		{   // now we need to clear the remaining open
 			// close the previous input, which is used
 			close(inputfd);
 			// make the new input the output of the pipe we have
-			inputfd = pipefd[0];
+			inputfd = pipefd[0]; // QUESTION: WHERE IS pipefd[0] CLOSED?
 			// close the write end of this pipe
 			close(pipefd[1]);
+			// administration
+			// question: should/could be skipped if exp.background=true?
+			cpids[i] = cpid;
 		}
-		// administration
-		// question: should/could be skipped if exp.background=true?
-		cpids[i] = cpid;
 	}
 
 	// close last reading pipe in parent
@@ -433,18 +435,22 @@ int executeExpression(Expression& expression)
 		cerr << strerror (rc) << endl;
 	}
 	return 0;
+	
 }
 
 int normal(bool showPrompt)
 {
 	while (cin.good())
-	{
+	{	
+		cout.clear();
 		string commandLine = requestCommandLine(showPrompt);
 		Expression expression = parseCommandLine(commandLine);
 		int rc = executeExpression(expression);
+		
+
 		if (rc != 0){
-			cerr << "mainloop received error\n";
-			cerr << strerror(rc) << endl;
+			cerr << "mainloop received error:\n";
+			cerr << rc << " : " << strerror(rc) << endl;
 		}
 	}
 	cerr << "cin.notsogoodanymore()\n";
@@ -489,7 +495,7 @@ int demoTwoCommands(bool showPrompt)
 		dup2(channel[0], STDIN_FILENO);
 		close(channel[1]);
 		close(channel[0]);
-
+	
 		Command cmd = { {string("tail"), string("-c"), string("5")} };
 		executeCommand(cmd);
 		abort();
@@ -605,6 +611,7 @@ int demoThreeCommands(bool showPrompt)
 int shell(bool showPrompt)
 {
 	// main shell loop
+	//
 	return normal(showPrompt);
 	// // testArea
 	// Command cmdDate = {{string("date")}};
