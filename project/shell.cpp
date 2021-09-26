@@ -352,7 +352,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 				// open a fd for the output file in write or read/write mode
 				// not sure if its the right option to do this here, instead of
 				// above the whole for-loop
-				
+
 				outputfd = open(expression.inputFromFile.c_str(), FileOutputModeFlag);
 				DEBUGs("Created outputfd: " << outputfd);
 				dup2(outputfd, STDOUT_FILENO);
@@ -366,21 +366,21 @@ int executeManyCommandsSinglePipe(Expression& expression)
 
 			int errcode = executeCommand(expression.commands[i]);
 			if (errcode != 0) {
-			cerr << getpid() << " encountered bad command: ";
-			for (auto part : expression.commands[i].parts)
-			{
-				cerr << part << " ";
-			}
-			cerr << endl;
+				cerr << getpid() << " encountered bad command: ";
+				for (auto part : expression.commands[i].parts)
+				{
+					cerr << part << " ";
+				}
+				cerr << endl;
 			}
 			abort();
 
 		}
 		else
 			// parent part of the loop
-		{   
+		{
 			// make the new input the output of the pipe we have
-			inputfd = pipefd[0]; 
+			inputfd = pipefd[0];
 			// close the write end of this pipe
 			close(pipefd[1]);
 			// administration
@@ -409,7 +409,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 		}
 		DEBUG("waited for all pid, returning");
 	}
-	
+
 	return 0;
 }
 
@@ -427,23 +427,23 @@ int executeExpression(Expression& expression)
 	}
 
 	int rc = executeManyCommandsSinglePipe(expression);
-	if (rc != 0 ){
+	if (rc != 0) {
 		cerr << "executeCommandSingePipe failed" << endl;
-		cerr << strerror (rc) << endl;
+		cerr << strerror(rc) << endl;
 	}
 	return 0;
-	
+
 }
 
 int normal(bool showPrompt)
 {
 	while (cin.good())
-	{	
+	{
 		string commandLine = requestCommandLine(showPrompt);
 		Expression expression = parseCommandLine(commandLine);
 		int rc = executeExpression(expression);
-		
-		if (rc != 0){
+
+		if (rc != 0) {
 			cerr << "mainloop received error:\n";
 			cerr << rc << " : " << strerror(rc) << endl;
 		}
@@ -489,7 +489,7 @@ int demoTwoCommands(bool showPrompt)
 		dup2(channel[0], STDIN_FILENO);
 		close(channel[1]);
 		close(channel[0]);
-	
+
 		Command cmd = { {string("tail"), string("-c"), string("5")} };
 		executeCommand(cmd);
 		abort();
@@ -599,7 +599,7 @@ int shell(bool showPrompt)
 {
 	// main shell loop
 	//
-	 return normal(showPrompt);
+	return normal(showPrompt);
 	// // testArea
 	// Command cmdDate = {{string("date")}};
 	// Command cmdTail1 = {{string("tail"), string("-c"), string("15")}};
