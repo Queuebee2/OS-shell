@@ -20,9 +20,10 @@
 #include <vector>
 
 // thanks to https://stackoverflow.com/a/14256296/6934388
-#define DEBUGMODE 1
-#define DEBUG(x) do {  if (DEBUGMODE) { std::cerr << x << std::endl; } } while (0)
-#define DEBUG2(x) do { if (DEBUGMODE) { std::cerr << #x << ": " << x << std::endl; } } while (0)
+#define DEBUGMODE 0
+#define DEBUGs(x) do {  if (DEBUGMODE>1) { std::cerr << x << std::endl; } } while (0)
+#define DEBUG(x) do {  if (DEBUGMODE>1) { std::cerr << x << std::endl; } } while (0)
+#define DEBUG2(x) do { if (DEBUGMODE>1) { std::cerr << #x << ": " << x << std::endl; } } while (0)
 
 using namespace std;
 
@@ -336,7 +337,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 	}
 	else {
 		FileInputModeFlag = O_RDONLY;
-		FileOutputModeFlag = O_RDONLY;
+		FileOutputModeFlag = O_WRONLY | O_TRUNC | O_CREAT;
 	}
 
 	pid_t cpid;
@@ -356,8 +357,8 @@ int executeManyCommandsSinglePipe(Expression& expression)
 	{
 		if (i != LAST)
 		{
-			// if theres more processes to 
-			// be started, we need pipes to
+			// if there are more processes to 
+			// be started, we a pipe to
 			// redirect their I/O fds
 			if (pipe(pipefd) != 0)
 			{
@@ -397,20 +398,20 @@ int executeManyCommandsSinglePipe(Expression& expression)
 				close(pipefd[1]);
 			}
 
-
-			// if an outputfile is defined
+			// if an outputfile is given
 			if (i == LAST && expression.outputToFile.empty() == 0) {
 				// open a fd for the output file in write or read/write mode
 				// not sure if its the right option to do this here, instead of
 				// above the whole for-loop
 				
 				outputfd = open(expression.inputFromFile.c_str(), FileOutputModeFlag);
-				DEBUG("Created outputfd: " << outputfd);
+				DEBUGs("Created outputfd: " << outputfd);
 				dup2(outputfd, STDOUT_FILENO);
 				close(outputfd);
 			}
 
 			// close remaining resources
+			close(inputfd);
 			close(pipefd[1]);
 			close(pipefd[0]);
 
@@ -428,11 +429,9 @@ int executeManyCommandsSinglePipe(Expression& expression)
 		}
 		else
 			// parent part of the loop
-		{   // now we need to clear the remaining open
-			// close the previous input, which is used
-			close(inputfd);
+		{   
 			// make the new input the output of the pipe we have
-			inputfd = pipefd[0]; // QUESTION: WHERE IS pipefd[0] CLOSED?
+			inputfd = pipefd[0]; 
 			// close the write end of this pipe
 			close(pipefd[1]);
 			// administration
@@ -441,13 +440,11 @@ int executeManyCommandsSinglePipe(Expression& expression)
 		}
 	}
 
-	// close last reading pipe in parent
-	close(pipefd[0]);
-
 	// wait for children to finish their processing
 	// (skips if expression.background=true)
 	if (!expression.background)
 	{
+		// waitpid(-1, NULL, 0); can we use this instead?
 		for (auto p : cpids)
 		{
 			DEBUG("waiting for pid: " << p);
@@ -493,18 +490,15 @@ int normal(bool showPrompt)
 {
 	while (cin.good())
 	{	
-		cout.clear();
 		string commandLine = requestCommandLine(showPrompt);
 		Expression expression = parseCommandLine(commandLine);
 		int rc = executeExpression(expression);
 		
-
 		if (rc != 0){
 			cerr << "mainloop received error:\n";
 			cerr << rc << " : " << strerror(rc) << endl;
 		}
 	}
-	cerr << "cin.notsogoodanymore()\n";
 	return 0;
 }
 
@@ -562,7 +556,7 @@ int demoTwoCommands(bool showPrompt)
 	return 0;
 }
 
-int demoThreeCommands(bool showPrompt)
+int demoThreeCommandsOnePipe(bool showPrompt)
 {
 	cout << "Demo with three commands. \n";
 	cout << "executing: date | tail -c 15 | tail c 5 \n";
@@ -578,11 +572,6 @@ int demoThreeCommands(bool showPrompt)
 		cout << "Failed to create pipe!\n";
 	}
 
-	if (pipe(fd2) != 0)
-	{
-		cout << "Failed to create pipe!\n";
-	}
-
 	pid_t cpid_1 = fork();
 	if (cpid_1 == 0)
 	{ // child 1 reads input from the 'date' command
@@ -592,13 +581,14 @@ int demoThreeCommands(bool showPrompt)
 
 		close(fd[0]);
 		close(fd[1]); // WHY
-		close(fd2[0]);
-		close(fd2[1]);
 
 		executeCommand(cmd);
 	}
 
 	cout << input << "  was input  1" << endl;
+
+
+	// keep previous pipe end
 	input = fd[0];
 	// instead of line above would this be better??
 	// input = dup(fd[0]);
@@ -606,11 +596,7 @@ int demoThreeCommands(bool showPrompt)
 
 	close(fd[1]); // THIS )*(#$@U&(*@Y(FY(YHF(Y#(*FY(* YH#(*YF((&T&^(*T@(*&)ER(&!%@^RE&(!@VBE(&^!@%E(&^!@VRBE*^%@!%E^&(!@%G*#^@!%#!*@^#V&@!(^V%#(!&^@V#%^F&!(@^#$%V(&!@^%#GD(B&^!@G#%(I&!@F^G#%D(!@#^B*F^&!@%#VF%$(&%!@R$#*^&!@%G%#DB(&!@^%#$VB(!@&&^G#TBDUI!@^%#RVB@!&^O#BRI*^%!@#CV(&^ !@V%#)(&!@^%#S!@(&BV%#(@!^ &#V%()!@&^#G%BS(@!&#%^BIQ&@^#TRNCF!@#(*^%$#TF!^T(@FDC$D(^!@TRFC$(^@Y!TCV$)(U@Y!TFV$@!(UYTFV$)(!@&^T$F@!&)(^F$@!(VF$(@!UYG$FVOU@F!YGV$YUF!@UYGFO$U*OYGF@!*)UYGI$*)YG!@*)YGT$!@*)YU$&*(UY@!(&Y_$(*&Y!@_(_&*$Y!@(*_&Y$(*_&Y@!(_*&Y$(_!@*&Y$(_*&Y!@(_*&Y@!$(*_Y&(_*Y&@!$(_*Y@!$(*Y@!(*Y$(Y*@!$GU&O*&^O*&!@^&$*^O*$&^V@!)*&!^@$*)&!@^$)*&@!^)$*@!&^$)*&!@$^)!@*B&$^)!@*&^$
 
-	cout << fd[0] << "  was pipe 0 " << endl;
-	cout << input << "  was input " << endl;
-	pipe(fd);
-	cout << fd[0] << "  is pipe 0 " << endl;
-	cout << input << "  is input " << endl;
+	pipe(fd); // next pipe
 
 	pid_t cpid_2 = fork();
 	if (cpid_2 == 0)
@@ -644,6 +630,7 @@ int demoThreeCommands(bool showPrompt)
 		close(fd2[1]);
 		executeCommand(cmd);
 	}
+
 	close(input);
 	close(fd[0]);
 	close(fd[1]);
@@ -663,7 +650,7 @@ int shell(bool showPrompt)
 {
 	// main shell loop
 	//
-	return normal(showPrompt);
+	 return normal(showPrompt);
 	// // testArea
 	// Command cmdDate = {{string("date")}};
 	// Command cmdTail1 = {{string("tail"), string("-c"), string("15")}};
@@ -689,5 +676,5 @@ int shell(bool showPrompt)
 
 	/// available demo's
 	/// return demoTwoCommands(showPrompt);
-	//return demoThreeCommands(showPrompt);
+	/// return demoThreeCommandsOnePipe(showPrompt);
 }
