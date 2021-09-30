@@ -320,8 +320,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 			}
 		}
 
-		cpid = fork();
-		if (cpid < 0) {
+		if ((cpid = fork()) < 0) {
 			cerr << strerror(cpid) << "\nfork failed" << endl;
 			abort();
 		}
@@ -348,22 +347,28 @@ int executeManyCommandsSinglePipe(Expression& expression)
 				// input of next pipe
 				dup2(pipefd[1], STDOUT_FILENO);
 				close(pipefd[1]);
-			} else 
-			// if an outputfile is given
-			if (i == LAST && expression.outputToFile.empty() == 0) {
-				// open a fd for the output file in write or read/write mode
-				// not sure if its the right option to do this here, instead of
-				// above the whole for-loop
-				// TODO, should this be A FULL path? or RELATIVE?
-				// TODO: Fix this, cat > bob.txt runs but it doesnt SAVE.
-				outputfd = open(expression.outputToFile.c_str(), FileOutputModeFlag,  0644);
-				DEBUGs("Created outputfd: " << outputfd);
-				// cerr << FileOutputModeFlag << endl;
-				// cerr << expression.outputToFile.c_str() << endl;
+			}
+			else
+				//  if an outputfile is given
+				if (i == LAST && (expression.outputToFile.empty() == 0)) {
+					// open a fd for the output file in write or read/write mode
+					// not sure if its the right option to do this here, instead of
+					// above the whole for-loop
+					// TODO, should this be A FULL path? or RELATIVE?
+					// TODO: Fix this, cat > bob.txt runs but it doesnt SAVE.
+					// O_WRONLY | O_TRUNC | O_CREAT | O_EXCL
+					if ((outputfd = open(expression.outputToFile.c_str(), FileOutputModeFlag, writePermissions)) < 0) {
+						cerr << "opening file error for " << expression.outputToFile.c_str() << endl;
+						cerr << strerror(errno) << endl; // errorcode should be better described with this!
+						abort();
+					}
+					DEBUGs("Created outputfd: " << outputfd);
+					// cerr << FileOutputModeFlag << endl;
+					// cerr << expression.outputToFile.c_str() << endl;
 				// cerr << outputfd;
-				dup2(outputfd, STDOUT_FILENO);
-				close(outputfd);
-			} 
+					dup2(outputfd, STDOUT_FILENO);
+					close(outputfd);
+				}
 
 			// close remaining resources
 			// close(inputfd);? why isnt this neededw
