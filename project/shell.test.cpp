@@ -49,8 +49,8 @@ TEST(Shell, ReadFromAndWriteToFile) {
 }
 
 TEST(Shell, ReadFromAndWriteToFileChained) {
-	Execute("cat < 1 | head -n 3 > ../foobar", "", "../foobar", "line 1\nline 2\nline 3\n");
-	Execute("cat < 1 | head -n 3 | tail -n 1 > ../foobar", "", "../foobar", "line 3\n");
+	Execute("cat < 1 | head -n 3 > ../foobar", "", "../foobar", "line 1\r\nline 2\r\nline 3\r\n");
+	Execute("cat < 1 | head -n 3 | tail -n 1 > ../foobar", "", "../foobar", "line 3\r\n");
 }
 
 TEST(Shell, WriteToFile) {
