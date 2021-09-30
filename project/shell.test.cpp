@@ -41,7 +41,7 @@ TEST(Shell, splitString) {
 }
 
 TEST(Shell, ReadFromFile) {
-	Execute("cat < 1", "line 1\nline 2\nline 3\nline 4");
+	Execute("cat < 1", "line 1\r\nline 2\r\nline 3\r\nline 4");
 }
 
 TEST(Shell, ReadFromAndWriteToFile) {
