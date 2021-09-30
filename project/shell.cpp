@@ -28,6 +28,8 @@
 #define DEBUG(x) do {  if (DEBUGMODE>1) { std::cerr << x << std::endl; } } while (0)
 #define DEBUG2(x) do { if (DEBUGMODE>1) { std::cerr << #x << ": " << x << std::endl; } } while (0)
 
+#define SHELLTHEME 0
+
 using namespace std;
 
 struct Command
@@ -44,7 +46,6 @@ struct Expression
 };
 
 const int CHANGED_DIR_FLAG = 65;
-
 
 
 // Parses a string to form a vector of arguments. The seperator is a space char (' ').
@@ -105,50 +106,34 @@ int executeCommand(const Command& cmd)
 	return retval;
 }
 
-void displayCustomPrompt(char *dir)
+// easter egg (#define SHELLTHEME 1) custom prompt coloring (warning: disgusting code)
+void displayCustomPrompt(char* dir)
 {
-	/*
-  TODO : 
-  	- move settings out
-  	- add commands to change settings
-  	- add presets ;D
-  */
 	string user_path(dir);
 
-	vector<string> commands = splitString(user_path, '/');
+	vector<string> directories = splitString(user_path, '/');
+	int dir_amt = directories.size();
 	int YELLOW = 33;
 	int SEPCOLOR = YELLOW;
 	int OMEGACOLOR = 35;
 	int k;
-	for (int i = 0; i < commands.size(); i++)
+	for (int i = 0; i < dir_amt; i++)
 	{
 		k = (i % 6) + 31;
-		if (k == SEPCOLOR)
-		{
-			k++;
-		}
-		if (i < 2 || i > (commands.size() - 3))
-		{
-			cout << "\e[" << k << "m" << commands[i];
-		}
-		else
-		{
-			cout << "\e["
-		}
-		if (i == 0 || i == 1 || i == commands.size() - 3 || i == commands.size() - 2)
-		{
-			cout << "\e[" << SEPCOLOR << "m"
-				 << "->";
-		}
+		if (k == SEPCOLOR){
+			k++;}
+		if (i < 2 || i >(dir_amt - 3)){
+			cout << "\e[" << k << "m" << directories[i];
+		}else{
+			cout << "\e[";
+		}if (i == 0 || i == 1 || i == dir_amt - 3 || i == dir_amt - 2){
+			cout << "\e[" << SEPCOLOR << "m" << "->";}
 	}
-	cout << "\e[" << SEPCOLOR << "m Ω "
-		 << "\e[" << OMEGACOLOR << "m";
+	cout << "\e[" << SEPCOLOR << "m Ω " << "\e[" << OMEGACOLOR << "m";
 }
 
-void displayStandardPrompt(char *dir)
+void displayStandardPrompt(char* dir)
 {
-			cout << "\e[" << k << "m"
-				 << "..";
 	if (dir)
 	{
 		cout << "\e[32m" << dir << "\e[39m"; // the strings starting with '\e' are escape codes, that the terminal application interpets in this case as "set color to green"/"set color to default"
@@ -160,11 +145,14 @@ void displayStandardPrompt(char *dir)
 void displayPrompt()
 {
 	char buffer[512];
-	char *dir = getcwd(buffer, sizeof(buffer));
+	char* dir = getcwd(buffer, sizeof(buffer));
 
-	// old displayStandardPrompt(dir);
-
-	displayCustomPrompt(dir);
+	if (SHELLTHEME == 1) {
+		displayCustomPrompt(dir);
+	}
+	else {
+		displayStandardPrompt(dir);
+	}
 
 	flush(cout);
 }
@@ -215,6 +203,7 @@ Expression parseCommandLine(string commandLine)
 	return expression;
 }
 
+
 // change current directory to the users $HOME directory
 int goHome() {
 	char* home_dir;
@@ -229,6 +218,7 @@ int goHome() {
 		return -1;
 	}
 }
+
 // handle a 'cd' command, only handles a single viable path.
 int handleChangeDirectory(Command cmd)
 {
@@ -248,7 +238,7 @@ int handleChangeDirectory(Command cmd)
 		return goHome();
 	}
 	// last case, try to go to the specified directory.
-	if ((chdir(cmd.parts.at(1).c_str())) < 0)
+	else if ((chdir(cmd.parts.at(1).c_str())) < 0)
 	{
 		cerr << "cd error:" << endl;
 		cerr << strerror(errno) << endl; // errorcode should be better described with this

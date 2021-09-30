@@ -13,3 +13,8 @@ No major known bugs. I hope.
 # how to use
 Click [the link](https://gitlab.science.ru.nl/OperatingSystems/assignment1.git) in the top of this readme and follow the instructions there!!
 
+# easter egg 🥚
+Define `SHELLTHEME` in `shell.cpp` as 1 for a custom prompt
+```cpp
+#define SHELLTHEME 1
+```
