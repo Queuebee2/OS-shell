@@ -1,7 +1,9 @@
 /**
 * Shell
 * Operating Systems
-* v20.08.28
+* version many
+*
+* TODO : find errors with (func() < 0) and then cout << strerror(errno).
 */
 
 #include <iostream>
@@ -14,6 +16,7 @@
 #include <signal.h>
 #include <string.h>
 
+#include <sys/types.h>
 #include <sys/stat.h> // for open()
 #include <fcntl.h>
 
@@ -21,7 +24,7 @@
 
 // thanks to https://stackoverflow.com/a/14256296/6934388
 #define DEBUGMODE 0
-#define DEBUGs(x) do {  if (DEBUGMODE>1) { std::cerr << x << std::endl; } } while (0)
+#define DEBUGs(x) do {  if (DEBUGMODE>0) { std::cerr << x << std::endl; } } while (0)
 #define DEBUG(x) do {  if (DEBUGMODE>1) { std::cerr << x << std::endl; } } while (0)
 #define DEBUG2(x) do { if (DEBUGMODE>1) { std::cerr << #x << ": " << x << std::endl; } } while (0)
 
@@ -170,6 +173,7 @@ void displayPrompt()
 // (and shows prompt if showPrompt==True)
 string requestCommandLine(bool showPrompt)
 {
+
 	if (showPrompt)
 	{
 		displayPrompt();
@@ -211,32 +215,47 @@ Expression parseCommandLine(string commandLine)
 	return expression;
 }
 
+// change current directory to the users $HOME directory
+int goHome() {
+	char* home_dir;
+	int err;
+	home_dir = getenv("HOME");
+	if (home_dir != NULL) {
+		err = chdir(home_dir);
+		return CHANGED_DIR_FLAG;
+	}
+	else {
+		cerr << "no $HOME directory found" << endl;
+		return -1;
+	}
+}
 // handle a 'cd' command, only handles a single viable path.
 int handleChangeDirectory(Command cmd)
 {
-	if (cmd.parts.size() != 2)
+	// only cd, we chdir to $HOME.
+	if (cmd.parts.size() == 1) {
+		return goHome();
+	}
+	// we won't handle multiple arguments. Just a single directory.
+	else if (cmd.parts.size() != 2)
 	{
-		cout << "Wrong amount of arguments for cd " << endl;
-		cout << "Usage: cd <path>" << endl;
+		cerr << "Wrong amount of arguments for cd " << endl;
+		cerr << "Usage: cd <path>" << endl;
 		return CHANGED_DIR_FLAG;
 	}
-
-	int errcode = chdir(cmd.parts.at(1).c_str());
-	if (errcode != 0)
+	// ~ indicates user $HOME directory, for this shell. So go home.
+	else if (cmd.parts.at(1).compare("~") == 0) {
+		return goHome();
+	}
+	// last case, try to go to the specified directory.
+	if ((chdir(cmd.parts.at(1).c_str())) < 0)
 	{
-		cerr << "chdir failed " << errcode << endl;
-		switch (errcode)
-		{
-		case -1: // 'Unknown error'
-			cerr << "the given path was probably invalid." << endl;
-			break;
-		default:
-			cerr << "cd error:" << endl;
-			cerr << strerror(errcode) << endl;
-		}
+		cerr << "cd error:" << endl;
+		cerr << strerror(errno) << endl; // errorcode should be better described with this
 	}
 	return CHANGED_DIR_FLAG;
 }
+
 
 // handle exit and chande dir.
 int handleInternalCommands(Expression& expression)
@@ -391,11 +410,12 @@ int executeManyCommandsSinglePipe(Expression& expression)
 			// parent part of the loop
 		{
 			// make the new input the output of the pipe we have
+
 			inputfd = pipefd[0];
 			// close the write end of this pipe
 			close(pipefd[1]);
 			// administration
-			// question: should/could be skipped if exp.background=true?
+				// question: should/could be skipped if exp.background=true?
 			cpids[i] = cpid;
 		}
 	}
@@ -430,7 +450,7 @@ int executeExpression(Expression& expression)
 	if (expression.commands.size() == 0)
 		return EINVAL;
 
-	// Handle internal commands (like 'cd' and 'exit')
+	// // Handle internal commands (like 'cd' and 'exit')
 	int status = handleInternalCommands(expression);
 	if (status == CHANGED_DIR_FLAG) // cd happened
 	{
@@ -439,8 +459,9 @@ int executeExpression(Expression& expression)
 
 	int rc = executeManyCommandsSinglePipe(expression);
 	if (rc != 0) {
-		cerr << "executeCommandSingePipe failed" << endl;
+		cerr << "executeManyCommandsSinglePipe failed" << endl;
 		cerr << strerror(rc) << endl;
+		cerr << strerror(errno) << endl;
 	}
 	return 0;
 
