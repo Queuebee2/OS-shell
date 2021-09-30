@@ -209,97 +209,49 @@ int handleInternalCommands(Expression& expression)
 	return 0;
 }
 
-// handles only 1 simple command and exactly 0 pipes.
-int executeSingleCommandSimple(Expression& expression)
-{
-
-	pid_t cpid = fork();
-	if (cpid == 0)
-	{
-		int rc = executeCommand(expression.commands[0]);
-		// if code reaches here, error has occurred. handle and abort.
-		cerr << "executeSingleCommandSimple errored:\n"
-			<< strerror(rc) << endl;
-		abort();
-	}
-	waitpid(cpid, NULL, 0);
-	return 0;
-}
-
-// handles expression with exactly 1 pipe
-// see demoTwoCommands() for docstrings
-int executeDualCommandSimple(Expression& expression)
-{
-	int channel[2];
-
-	if (pipe(channel) != 0)
-	{
-		cout << "Failed to create pipe\n";
-	}
-
-	pid_t child1 = fork();
-	if (child1 == 0)
-	{
-		dup2(channel[1], STDOUT_FILENO);
-		close(channel[1]);
-		close(channel[0]);
-		Command cmd = expression.commands[0];
-		executeCommand(cmd);
-		abort();
-	}
-
-	pid_t child2 = fork();
-	if (child2 == 0)
-	{
-		dup2(channel[0], STDIN_FILENO);
-		close(channel[1]);
-		close(channel[0]);
-		Command cmd = expression.commands[1];
-		executeCommand(cmd);
-		abort();
-	}
-
-	close(channel[0]);
-	close(channel[1]);
-
-	waitpid(child1, nullptr, 0);
-	waitpid(child2, nullptr, 0);
-	return 0;
-}
 
 int executeManyCommandsSinglePipe(Expression& expression)
 {
 	int AMT_COMMANDS = expression.commands.size();
 	int LAST = AMT_COMMANDS - 1;
+	mode_t writePermissions = 0644;
 	int pipefd[2];
 	int inputfd, outputfd;
 
 	// I don't know c++, so i dont know a 'better' way to do this right now.
 	int FileInputModeFlag;
 	int FileOutputModeFlag;
-	if (expression.inputFromFile.empty() == 0 &&
-		expression.outputToFile.empty() == 0 &&
-		expression.inputFromFile.compare(expression.outputToFile) == 0)
-	{	// if both input and output files are the same
-		FileInputModeFlag = O_RDWR;
-		FileOutputModeFlag = O_RDWR;
-	}
-	else {
-		FileInputModeFlag = O_RDONLY;
-		FileOutputModeFlag = O_WRONLY | O_TRUNC | O_CREAT | O_EXCL;
-	}
+	// 
+	// if ((expression.inputFromFile.empty() == 0) &&
+	// 	(expression.outputToFile.empty() == 0) &&
+	// 	(expression.inputFromFile.compare(expression.outputToFile) == 0))
+	// {	// if both input and output files are the same
+	// DEBUGs("Created read/write permission for file: "<< expression.outputToFile.c_str()l )
+	// 	FileInputModeFlag = O_RDWR;
+	// 	FileOutputModeFlag = O_RDWR;
+	// }
+	// else {
+	FileInputModeFlag = O_RDONLY;
+	FileOutputModeFlag = O_WRONLY | O_CREAT | O_EXCL | O_TRUNC;
+	// }
 
 	pid_t cpid;
-	pid_t cpids[expression.commands.size()];
+	pid_t cpids[AMT_COMMANDS];
 
 	if (expression.inputFromFile.empty() == 0) {
+
 		// if an input file is given, create a filedescriptor and set it as input
-		inputfd = open(expression.inputFromFile.c_str(), FileInputModeFlag);
-		DEBUG("Created inputfd " << inputfd << " for " << expression.inputFromFile.c_str());
+		if ((inputfd = open(expression.inputFromFile.c_str(), FileInputModeFlag)) < 0) {
+			cerr << "creating a file to read from failed!" << endl;
+			cerr << strerror(errno) << endl; // errorcode should be better described with this
+			return -1;
+		}
+		DEBUGs("Created inputfd " << inputfd << " for " << expression.inputFromFile.c_str());
 		// TODO : what other flags are NEEDED, which ones COULD we handle?
 	}
 	else {
 		inputfd = STDIN_FILENO;
+
 	}
 
 	for (int i = 0; i < AMT_COMMANDS; i++)
@@ -454,6 +406,68 @@ int normal(bool showPrompt)
 	return 0;
 }
 
+// unused commands below.
+
+// handles only 1 simple command and exactly 0 pipes.
+int executeSingleCommandSimple(Expression& expression)
+{
+
+	pid_t cpid = fork();
+	if (cpid == 0)
+	{
+		int rc = executeCommand(expression.commands[0]);
+		// if code reaches here, error has occurred. handle and abort.
+		cerr << "executeSingleCommandSimple errored:\n"
+			<< strerror(rc) << endl;
+		abort();
+	}
+	waitpid(cpid, NULL, 0);
+	return 0;
+}
+
+
+// handles expression with exactly 1 pipe
+// see demoTwoCommands() for docstrings
+int executeDualCommandSimple(Expression& expression)
+{
+	int channel[2];
+
+	if (pipe(channel) != 0)
+	{
+		cerr << "Failed to create pipe\n";
+	}
+
+	pid_t child1 = fork();
+	if (child1 == 0)
+	{
+		dup2(channel[1], STDOUT_FILENO);
+		close(channel[1]);
+		close(channel[0]);
+		Command cmd = expression.commands[0];
+		executeCommand(cmd);
+		abort();
+	}
+
+	pid_t child2 = fork();
+	if (child2 == 0)
+	{
+		dup2(channel[0], STDIN_FILENO);
+		close(channel[1]);
+		close(channel[0]);
+		Command cmd = expression.commands[1];
+		executeCommand(cmd);
+		abort();
+	}
+
+	close(channel[0]);
+	close(channel[1]);
+
+	waitpid(child1, nullptr, 0);
+	waitpid(child2, nullptr, 0);
+	return 0;
+}
+
+
 // framework for executing "date | tail -c 5" using raw commands
 // two processes are created, and connected to each other
 int demoTwoCommands(bool showPrompt)
@@ -466,7 +480,7 @@ int demoTwoCommands(bool showPrompt)
 	// channel[1] refers to the write end of the pipe.
 	if (pipe(channel) != 0)
 	{
-		cout << "Failed to create pipe\n";
+		cerr << "Failed to create pipe\n";
 	}
 
 	pid_t child1 = fork();
