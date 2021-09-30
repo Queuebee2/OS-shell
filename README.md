@@ -4,9 +4,12 @@
 ^ click link to see setup instructions for linux/macOS/Windows
 
 # bugs
-- ~~WSL2 permission errors (device specific I guess) when writing?? Or is the implementation of opening a fh (and creating etc ) wrong?~~
+No major known bugs. I hope.
 
-- `cat > bob.txt` 'works' now, but the typed content isn't written into the file (?? not saved??)
-	- figure out: which flags, when? `O_WRONLY | O_TRUNC | O_CREAT | O_EXCL` (and others)
-	- what 'mode' should be passed to `open(fn, flasgs, mode)` ? currently `0644`	
+# features
+- `cd` and `cd ~` should lead to user `$HOME` directory
+- reading/writing output when running this shell from within WSL2 will yield nice carriage returns before the newlines. ⌨
+
+# how to use
+Click [the link](https://gitlab.science.ru.nl/OperatingSystems/assignment1.git) in the top of this readme and follow the instructions there!!
 
