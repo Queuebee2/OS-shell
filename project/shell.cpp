@@ -161,7 +161,6 @@ void displayPrompt()
 // (and shows prompt if showPrompt==True)
 string requestCommandLine(bool showPrompt)
 {
-
 	if (showPrompt)
 	{
 		displayPrompt();
@@ -438,7 +437,10 @@ int executeExpression(Expression& expression)
 {
 	// Check for empty expression
 	if (expression.commands.size() == 0)
+	{
+		cerr << "No input command was given" << endl;
 		return EINVAL;
+	}
 
 	// // Handle internal commands (like 'cd' and 'exit')
 	int status = handleInternalCommands(expression);
@@ -589,6 +591,7 @@ int demoTwoCommands(bool showPrompt)
 	return 0;
 }
 
+
 int demoThreeCommandsOnePipe(bool showPrompt)
 {
 	cout << "Demo with three commands. \n";
@@ -711,5 +714,3 @@ int shell(bool showPrompt)
 	/// return demoTwoCommands(showPrompt);
 	/// return demoThreeCommandsOnePipe(showPrompt);
 }
-
-//Test (TODO: Remove in final version) 
