@@ -40,15 +40,28 @@ TEST(Shell, splitString) {
 	EXPECT_EQ(expected, splitString("cmd1 arg1 < inputfile | cmd2 arg2 > outputfile"));
 }
 
-TEST(Shell, ReadFromFile) {
+TEST(Shell, ReadFromFileUnix) {
+	Execute("cat < 1", "line 1\nline 2\nline 3\nline 4");
+}
+
+TEST(Shell, ReadFromFileWindows) {
 	Execute("cat < 1", "line 1\r\nline 2\r\nline 3\r\nline 4");
 }
 
-TEST(Shell, ReadFromAndWriteToFile) {
+TEST(Shell, ReadFromAndWriteToFileUnix) {
+	Execute("cat < 1 > ../foobar", "", "../foobar", "line 1\nline 2\nline 3\nline 4");
+}
+
+TEST(Shell, ReadFromAndWriteToFileWindows) {
 	Execute("cat < 1 > ../foobar", "", "../foobar", "line 1\r\nline 2\r\nline 3\r\nline 4");
 }
 
-TEST(Shell, ReadFromAndWriteToFileChained) {
+TEST(Shell, ReadFromAndWriteToFileChainedUnix) {
+	Execute("cat < 1 | head -n 3 > ../foobar", "", "../foobar", "line 1\nline 2\nline 3\n");
+	Execute("cat < 1 | head -n 3 | tail -n 1 > ../foobar", "", "../foobar", "line 3\r\n");
+}
+
+TEST(Shell, ReadFromAndWriteToFileChainedWindows) {
 	Execute("cat < 1 | head -n 3 > ../foobar", "", "../foobar", "line 1\r\nline 2\r\nline 3\r\n");
 	Execute("cat < 1 | head -n 3 | tail -n 1 > ../foobar", "", "../foobar", "line 3\r\n");
 }
