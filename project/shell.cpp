@@ -162,7 +162,6 @@ void displayPrompt()
 // (and shows prompt if showPrompt==True)
 string requestCommandLine(bool showPrompt)
 {
-
 	if (showPrompt)
 	{
 		displayPrompt();
@@ -421,7 +420,10 @@ int executeExpression(Expression& expression)
 {
 	// Check for empty expression
 	if (expression.commands.size() == 0)
+	{
+		cerr << "No input command was given" << endl;
 		return EINVAL;
+	}
 
 	// // Handle internal commands (like 'cd' and 'exit')
 	int status = handleInternalCommands(expression);
@@ -571,6 +573,7 @@ int demoTwoCommands(bool showPrompt)
 	waitpid(child2, nullptr, 0);
 	return 0;
 }
+
 
 int demoThreeCommandsOnePipe(bool showPrompt)
 {

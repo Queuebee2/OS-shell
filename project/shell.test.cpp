@@ -15,6 +15,7 @@ namespace {
 
 void Execute(std::string command, std::string expectedOutput);
 void Execute(std::string command, std::string expectedOutput, std::string expectedOutputFile, std::string expectedOutputFileContent);
+void Execute2(std::string command, std::string expectedDirectory);
 
 TEST(Shell, splitString) {
 	std::vector<std::string> expected;
@@ -81,6 +82,47 @@ TEST(Shell, ExecuteChained) {
 	Execute("ls -1 | head -n 2 | tail -n 1", "2\n");
 }
 
+/*==================================================*/
+
+TEST(Shell, RemovingAndCreatingFiles){
+    //Test if removing something that is not there will go well
+    Execute2("rm doesntExist.txt", "1\n2\n3\n4\n");
+    //Test if making a newFile is succesful
+    Execute2("touch newFile", "1\n2\n3\n4\nnewFile\n");
+    //Test if creating 2 files at the same time is done correctly
+    Execute2("touch newFile.txt | touch newFile2.txt", "1\n2\n3\n4\nnewFile\n");
+    //Test if tunneling creating and directly deleting a file goes well (to see if the threads will do something weird with th order of commands)
+    Execute2("touch newFile.txt | rm newFile.txt", "1\n2\n3\n4\n");
+    //Test pipes whether it goes well with files
+}
+
+
+TEST(Shell, changingDirectory){
+    Execute("cd ~", "");
+    Execute("cd .. | cd", "");
+}
+
+TEST(Shell, exitBehaviour){
+    Execute2("touch newFile.txt | exit", "1\n2\n3\n4\n");
+    Execute("exit", "Bye!\n");
+    Execute("ls | date | pwd | exit", "Bye!\n");
+}
+
+TEST(Shell, backgroundCommands){
+    //To test if doing this actually only takes 5 seconds in total to see if & works
+    Execute("sleep 5 & | sleep 5","");
+}
+
+//To test if the errors are done well
+TEST(Shell, goodErrors){
+	Execute("","No input command was given\nmainloop received error:\n22 : Invalid argument");
+	//Can't be executed because the pid() is being printed here: Maybe remove pid(), has no value in error?
+	//Execute("nonExistingCmd", " encountered bad command: nonExistingCmd");
+	//Execute("date < nonExistingFile","");
+	Execute("pwd > output", "opening file error for output\n File exists");
+}
+
+/*==================================================*/
 
 //////////////// HELPERS
 
@@ -133,6 +175,19 @@ void Execute(std::string command, std::string expectedOutput) {
 	std::string got = filecontents("output");
 	EXPECT_EQ(expectedOutput, got);
 }
+
+/*==================================================*/
+void Execute2(string command, std::string expectedDirectory){
+    char buffer[512];
+    std::string dir = getcwd(buffer, sizeof(buffer));
+	// I don't know how to execute command and then ls for this test
+    filewrite("input", "ls");
+	std::string cmdstring = std::string("cd ../test-dir; " SHELL " < '") +  dir + "/input' > '" + dir + "/output' 2> /dev/null";
+    system(cmdstring.c_str());
+    std::string got = filecontents("output");
+    EXPECT_EQ(expectedDirectory, got);
+}
+/*==================================================*/
 
 void Execute(std::string command, std::string expectedOutput, std::string expectedOutputFile, std::string expectedOutputFileContent) {
 	char buffer[512];
