@@ -15,7 +15,9 @@ namespace {
 
 void Execute(std::string command, std::string expectedOutput);
 void Execute(std::string command, std::string expectedOutput, std::string expectedOutputFile, std::string expectedOutputFileContent);
-void Execute2(std::string command, std::string expectedDirectory);
+
+void Execute2(string command, std::string expectedDirectory);
+void ExecuteError(std::string command, std::string expectedOutput);
 
 TEST(Shell, splitString) {
 	std::vector<std::string> expected;
@@ -42,16 +44,16 @@ TEST(Shell, splitString) {
 }
 
 TEST(Shell, ReadFromFile) {
-	Execute("cat < 1", "line 1\r\nline 2\r\nline 3\r\nline 4");
+	Execute("cat < 1", "line 1\nline 2\nline 3\nline 4");
 }
 
 TEST(Shell, ReadFromAndWriteToFile) {
-	Execute("cat < 1 > ../foobar", "", "../foobar", "line 1\r\nline 2\r\nline 3\r\nline 4");
+	Execute("cat < 1 > ../foobar", "", "../foobar", "line 1\nline 2\nline 3\nline 4");
 }
 
 TEST(Shell, ReadFromAndWriteToFileChained) {
-	Execute("cat < 1 | head -n 3 > ../foobar", "", "../foobar", "line 1\r\nline 2\r\nline 3\r\n");
-	Execute("cat < 1 | head -n 3 | tail -n 1 > ../foobar", "", "../foobar", "line 3\r\n");
+	Execute("cat < 1 | head -n 3 > ../foobar", "", "../foobar", "line 1\nline 2\nline 3\n");
+	Execute("cat < 1 | head -n 3 | tail -n 1 > ../foobar", "", "../foobar", "line 3\n");
 }
 
 TEST(Shell, WriteToFile) {
@@ -71,42 +73,33 @@ TEST(Shell, ExecuteChained) {
 
 /*==================================================*/
 
-TEST(Shell, RemovingAndCreatingFiles){
-    //Test if removing something that is not there will go well
-    Execute2("rm doesntExist.txt", "1\n2\n3\n4\n");
-    //Test if making a newFile is succesful
-    Execute2("touch newFile", "1\n2\n3\n4\nnewFile\n");
-    //Test if creating 2 files at the same time is done correctly
-    Execute2("touch newFile.txt | touch newFile2.txt", "1\n2\n3\n4\nnewFile\n");
-    //Test if tunneling creating and directly deleting a file goes well (to see if the threads will do something weird with th order of commands)
-    Execute2("touch newFile.txt | rm newFile.txt", "1\n2\n3\n4\n");
-    //Test pipes whether it goes well with files
+TEST(Shell, RemovingFiles){
+    Execute2("rm doesntExist | ls", "1\n2\n3\n4\n");
+    Execute2("touch ../test-dir2/newFile | rm ../test-dir2/newFile | ls", "1\n2\n3\n4\n");
 }
 
-
-TEST(Shell, changingDirectory){
-    Execute("cd ~", "");
-    Execute("cd .. | cd", "");
+TEST(Shell, creatingFiles){
+	Execute2("touch ../test-dir2/newFile | ls ../test-dir2", "newFile\n");
+	Execute2("touch ../test-dir2/newFile | touch ../test-dir2/newFile | ls ../test-dir2", "newFile\n");
 }
 
 TEST(Shell, exitBehaviour){
-    Execute2("touch newFile.txt | exit", "1\n2\n3\n4\n");
-    Execute("exit", "Bye!\n");
+    Execute2("date | exit", "Bye!\n");
+    Execute("exit | ls", "Bye!\n");
     Execute("ls | date | pwd | exit", "Bye!\n");
 }
 
 TEST(Shell, backgroundCommands){
     //To test if doing this actually only takes 5 seconds in total to see if & works
-    Execute("sleep 5 & | sleep 5","");
+    Execute("time sleep 5 & | sleep 5","");
 }
 
 //To test if the errors are done well
 TEST(Shell, goodErrors){
-	Execute("","No input command was given\nmainloop received error:\n22 : Invalid argument");
+	ExecuteError("","No input command was given\nmainloop received error:\n22 : Invalid argument");
 	//Can't be executed because the pid() is being printed here: Maybe remove pid(), has no value in error?
-	//Execute("nonExistingCmd", " encountered bad command: nonExistingCmd");
-	//Execute("date < nonExistingFile","");
-	Execute("pwd > output", "opening file error for output\n File exists");
+	ExecuteError("nonExistingCmd", " encountered bad command: nonExistingCmd");
+	ExecuteError("pwd > 1", "opening file error for output\n File exists");
 }
 
 /*==================================================*/
@@ -164,14 +157,24 @@ void Execute(std::string command, std::string expectedOutput) {
 }
 
 /*==================================================*/
+void ExecuteError(std::string command, std::string expectedOutput) {
+	char buffer[512];
+	std::string dir = getcwd(buffer, sizeof(buffer));
+	filewrite("input", command);
+	std::string cmdstring = std::string("cd ../test-dir; " SHELL " < '") +  dir + "/input' > '" + dir + "/output' 2> /dev/null";
+	system(cmdstring.c_str());
+	std::string got = filecontents("output");
+	EXPECT_EQ(expectedOutput, got);
+}
+
 void Execute2(string command, std::string expectedDirectory){
     char buffer[512];
     std::string dir = getcwd(buffer, sizeof(buffer));
-	// I don't know how to execute command and then ls for this test
-    filewrite("input", "ls");
+	filewrite("input", command);
 	std::string cmdstring = std::string("cd ../test-dir; " SHELL " < '") +  dir + "/input' > '" + dir + "/output' 2> /dev/null";
     system(cmdstring.c_str());
     std::string got = filecontents("output");
+	filewrite("input", "rm ../test-dir2/newFile");
     EXPECT_EQ(expectedDirectory, got);
 }
 /*==================================================*/
