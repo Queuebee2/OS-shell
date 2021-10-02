@@ -3,7 +3,6 @@
 * Operating Systems
 * version many
 *
-* TODO : find errors with (func() < 0) and then cout << strerror(errno).
 */
 
 #include <iostream>
@@ -120,14 +119,17 @@ void displayCustomPrompt(char* dir)
 	for (int i = 0; i < dir_amt; i++)
 	{
 		k = (i % 6) + 31;
-		if (k == SEPCOLOR){
-			k++;}
-		if (i < 2 || i >(dir_amt - 3)){
+		if (k == SEPCOLOR) {
+			k++;
+		}
+		if (i < 2 || i >(dir_amt - 3)) {
 			cout << "\e[" << k << "m" << directories[i];
-		}else{
+		}
+		else {
 			cout << "\e[";
-		}if (i == 0 || i == 1 || i == dir_amt - 3 || i == dir_amt - 2){
-			cout << "\e[" << SEPCOLOR << "m" << "->";}
+		}if (i == 0 || i == 1 || i == dir_amt - 3 || i == dir_amt - 2) {
+			cout << "\e[" << SEPCOLOR << "m" << "->";		
+}
 	}
 	cout << "\e[" << SEPCOLOR << "m Ω " << "\e[" << OMEGACOLOR << "m";
 }
@@ -147,12 +149,11 @@ void displayPrompt()
 	char buffer[512];
 	char* dir = getcwd(buffer, sizeof(buffer));
 
-	if (SHELLTHEME == 1) {
-		displayCustomPrompt(dir);
-	}
-	else {
-		displayStandardPrompt(dir);
-	}
+#ifdef SHELLTHEME == 1
+	displayCustomPrompt(dir);
+#else
+	displayStandardPrompt(dir);
+#endif
 
 	flush(cout);
 }
@@ -278,22 +279,8 @@ int executeManyCommandsSinglePipe(Expression& expression)
 	int pipefd[2];
 	int inputfd, outputfd;
 
-	// I don't know c++, so i dont know a 'better' way to do this right now.
-	int FileInputModeFlag;
-	int FileOutputModeFlag;
-	// 
-	// if ((expression.inputFromFile.empty() == 0) &&
-	// 	(expression.outputToFile.empty() == 0) &&
-	// 	(expression.inputFromFile.compare(expression.outputToFile) == 0))
-	// {	// if both input and output files are the same
-	// DEBUGs("Created read/write permission for file: "<< expression.outputToFile.c_str()l )
-	// 	FileInputModeFlag = O_RDWR;
-	// 	FileOutputModeFlag = O_RDWR;
-	// }
-	// else {
-	FileInputModeFlag = O_RDONLY;
-	FileOutputModeFlag = O_WRONLY | O_CREAT | O_EXCL | O_TRUNC;
-	// }
+	int FileInputModeFlag = O_RDONLY;
+	int FileOutputModeFlag = O_WRONLY | O_CREAT | O_EXCL | O_TRUNC;
 
 	pid_t cpid;
 	pid_t cpids[AMT_COMMANDS];
@@ -329,6 +316,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 			}
 		}
 
+		// create child process here and catch errors
 		if ((cpid = fork()) < 0) {
 			cerr << strerror(cpid) << "\nfork failed" << endl;
 			abort();
@@ -336,7 +324,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 
 		if (cpid == 0)
 		{
-
+			// child clause
 			DEBUG("cpid " << getpid() << " started with input: " << inputfd);
 			if (inputfd != STDIN_FILENO)
 			{
@@ -363,18 +351,13 @@ int executeManyCommandsSinglePipe(Expression& expression)
 					// open a fd for the output file in write or read/write mode
 					// not sure if its the right option to do this here, instead of
 					// above the whole for-loop
-					// TODO, should this be A FULL path? or RELATIVE?
-					// TODO: Fix this, cat > bob.txt runs but it doesnt SAVE.
-					// O_WRONLY | O_TRUNC | O_CREAT | O_EXCL
+					// flags passed are O_WRONLY | O_TRUNC | O_CREAT | O_EXCL and mode 0644
 					if ((outputfd = open(expression.outputToFile.c_str(), FileOutputModeFlag, writePermissions)) < 0) {
 						cerr << "opening file error for " << expression.outputToFile.c_str() << endl;
 						cerr << strerror(errno) << endl; // errorcode should be better described with this!
 						abort();
 					}
 					DEBUGs("Created outputfd: " << outputfd);
-					// cerr << FileOutputModeFlag << endl;
-					// cerr << expression.outputToFile.c_str() << endl;
-				// cerr << outputfd;
 					dup2(outputfd, STDOUT_FILENO);
 					close(outputfd);
 				}
@@ -397,7 +380,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 
 		}
 		else
-			// parent part of the loop
+			// parent clause
 		{
 			// make the new input the output of the pipe we have
 
@@ -418,7 +401,7 @@ int executeManyCommandsSinglePipe(Expression& expression)
 		for (auto p : cpids)
 		{
 			DEBUG("waiting for pid: " << p);
-			if (p != 0)
+			if (p > 0)
 			{
 				waitpid(p, NULL, 0);
 			}
@@ -627,7 +610,7 @@ int demoThreeCommandsOnePipe(bool showPrompt)
 	// input = dup(fd[0]);
 	// close(fd[0]);
 
-	close(fd[1]); // THIS )*(#$@U&(*@Y(FY(YHF(Y#(*FY(* YH#(*YF((&T&^(*T@(*&)ER(&!%@^RE&(!@VBE(&^!@%E(&^!@VRBE*^%@!%E^&(!@%G*#^@!%#!*@^#V&@!(^V%#(!&^@V#%^F&!(@^#$%V(&!@^%#GD(B&^!@G#%(I&!@F^G#%D(!@#^B*F^&!@%#VF%$(&%!@R$#*^&!@%G%#DB(&!@^%#$VB(!@&&^G#TBDUI!@^%#RVB@!&^O#BRI*^%!@#CV(&^ !@V%#)(&!@^%#S!@(&BV%#(@!^ &#V%()!@&^#G%BS(@!&#%^BIQ&@^#TRNCF!@#(*^%$#TF!^T(@FDC$D(^!@TRFC$(^@Y!TCV$)(U@Y!TFV$@!(UYTFV$)(!@&^T$F@!&)(^F$@!(VF$(@!UYG$FVOU@F!YGV$YUF!@UYGFO$U*OYGF@!*)UYGI$*)YG!@*)YGT$!@*)YU$&*(UY@!(&Y_$(*&Y!@_(_&*$Y!@(*_&Y$(*_&Y@!(_*&Y$(_!@*&Y$(_*&Y!@(_*&Y@!$(*_Y&(_*Y&@!$(_*Y@!$(*Y@!(*Y$(Y*@!$GU&O*&^O*&!@^&$*^O*$&^V@!)*&!^@$*)&!@^$)*&@!^)$*@!&^$)*&!@$^)!@*B&$^)!@*&^$
+	close(fd[1]); // IMPORTANT.
 
 	pipe(fd); // next pipe
 
@@ -681,33 +664,12 @@ int demoThreeCommandsOnePipe(bool showPrompt)
 
 int shell(bool showPrompt)
 {
+
+
 	// main shell loop
-	//
 	return normal(showPrompt);
-	// // testArea
-	// Command cmdDate = {{string("date")}};
-	// Command cmdTail1 = {{string("tail"), string("-c"), string("15")}};
-	// Command cmdTail2 = {{string("tail"), string("-c"), string("7")}};
-	// Command cmdTail3 = {{string("tail"), string("-c"), string("3")}};
-	// Expression a, b, c;
-	// a.commands = {{{cmdDate}}};
 
-	// executeManyCommands2(a); // date
-
-	// b.commands = {{{cmdDate}, {cmdTail1}, {cmdTail2}, {cmdTail3}}};
-
-	// executeManyCommands2(b);
-
-	// c.commands = {{
-	//  {cmdDate},
-	//  {cmdTail1},
-	// }};
-
-	// executeManyCommands2(c);
-
-	// executeManyCommands2(c);
-
-	/// available demo's
-	/// return demoTwoCommands(showPrompt);
-	/// return demoThreeCommandsOnePipe(showPrompt);
+	// available demo's
+	// return demoTwoCommands(showPrompt);
+	// return demoThreeCommandsOnePipe(showPrompt);
 }
