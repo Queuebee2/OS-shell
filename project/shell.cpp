@@ -3,6 +3,7 @@
 * Operating Systems
 * version many
 *
+* This is a fork and adaptation of https://gitlab.science.ru.nl/operatingsystems/assignment1/-/blob/master/project/shell.cpp
 */
 
 #include <iostream>
@@ -31,11 +32,19 @@
 
 using namespace std;
 
+// Command structure holds command and arguments
+// e.g. with input  'tail -c 10', parts will be {"tail", "-c" , "10"}
 struct Command
 {
 	vector<string> parts = {};
 };
 
+// Experssion structure holds:
+// - names of input/output files
+// - whether the expression should be executed in the background
+// - vector of all commands 
+//   e.g if input is 'ls -l | head', commands will be {Command, Command};
+//   (expands to) {{"ls", "-l"}, {"head"}}
 struct Expression
 {
 	vector<Command> commands;
@@ -44,15 +53,13 @@ struct Expression
 	bool background = false;
 };
 
+// int checked when changing directories.
 const int CHANGED_DIR_FLAG = 65;
 
-
 // Parses a string to form a vector of arguments. The seperator is a space char (' ').
-vector<string> splitString(const string& str, char delimiter = ' ')
-{
+vector<string> splitString(const string& str, char delimiter = ' ') {
 	vector<string> retval;
-	for (size_t pos = 0; pos < str.length();)
-	{
+	for (size_t pos = 0; pos < str.length();) {
 		// look for the next space
 		size_t found = str.find(delimiter, pos);
 		// if no space was found, this is the last word
@@ -73,12 +80,10 @@ vector<string> splitString(const string& str, char delimiter = ' ')
 // always start with the command itself
 // always terminate with a NULL pointer
 // DO NOT CHANGE THIS FUNCTION UNDER ANY CIRCUMSTANCE
-int execvp(const vector<string>& args)
-{
+int execvp(const vector<string>& args) {
 	// build argument list
 	const char** c_args = new const char* [args.size() + 1];
-	for (size_t i = 0; i < args.size(); ++i)
-	{
+	for (size_t i = 0; i < args.size(); ++i) {
 		c_args[i] = args[i].c_str();
 	}
 	c_args[args.size()] = nullptr;
@@ -94,8 +99,7 @@ int execvp(const vector<string>& args)
 
 // Executes a command with arguments. In case of failure, returns error code.
 // should not return as it runs execvp, which replaces the process
-int executeCommand(const Command& cmd)
-{
+int executeCommand(const Command& cmd) {
 	auto& parts = cmd.parts;
 	if (parts.size() == 0)
 		return EINVAL;
@@ -106,8 +110,7 @@ int executeCommand(const Command& cmd)
 }
 
 // easter egg (#define SHELLTHEME 1) custom prompt coloring (warning: disgusting code)
-void displayCustomPrompt(char* dir)
-{
+void displayCustomPrompt(char* dir) {
 	string user_path(dir);
 
 	vector<string> directories = splitString(user_path, '/');
@@ -116,8 +119,7 @@ void displayCustomPrompt(char* dir)
 	int SEPCOLOR = YELLOW;
 	int OMEGACOLOR = 35;
 	int k;
-	for (int i = 0; i < dir_amt; i++)
-	{
+	for (int i = 0; i < dir_amt; i++) {
 		k = (i % 6) + 31;
 		if (k == SEPCOLOR) {
 			k++;
@@ -127,31 +129,29 @@ void displayCustomPrompt(char* dir)
 		}
 		else {
 			cout << "\e[";
-		}if (i == 0 || i == 1 || i == dir_amt - 3 || i == dir_amt - 2) {
-			cout << "\e[" << SEPCOLOR << "m" << "->";		
-}
+		}
+		if (i == 0 || i == 1 || i == dir_amt - 3 || i == dir_amt - 2) {
+			cout << "\e[" << SEPCOLOR << "m" << "->";
+		}
 	}
 	cout << "\e[" << SEPCOLOR << "m Ω " << "\e[" << OMEGACOLOR << "m";
 }
 
-void displayStandardPrompt(char* dir)
-{
-	if (dir)
-	{
-		cout << "\e[32m" << dir << "\e[39m"; // the strings starting with '\e' are escape codes, that the terminal application interpets in this case as "set color to green"/"set color to default"
+void displayStandardPrompt(char* dir) {
+	if (dir) {
+		cout << "\e[32m" << dir << "\e[39m";
 	}
 	cout << "$ ";
 }
 
 // shows a user prompt in the terminal showing the current working dir and a $
-void displayPrompt()
-{
+void displayPrompt() {
 	char buffer[512];
 	char* dir = getcwd(buffer, sizeof(buffer));
 
-#ifdef SHELLTHEME == 1
+#if SHELLTHEME == 1
 	displayCustomPrompt(dir);
-#else
+#else 
 	displayStandardPrompt(dir);
 #endif
 
@@ -160,10 +160,8 @@ void displayPrompt()
 
 // gets the current input from the commandline
 // (and shows prompt if showPrompt==True)
-string requestCommandLine(bool showPrompt)
-{
-	if (showPrompt)
-	{
+string requestCommandLine(bool showPrompt) {
+	if (showPrompt) {
 		displayPrompt();
 	}
 	string retval;
@@ -175,26 +173,21 @@ string requestCommandLine(bool showPrompt)
 // Here, the user input can be parsed using the following approach.
 // First, divide the input into the distinct commands (as they can be chained, separated by `|`).
 // Next, these commands are parsed separately. The first command is checked for the `<` operator, and the last command for the `>` operator.
-Expression parseCommandLine(string commandLine)
-{
+Expression parseCommandLine(string commandLine) {
 	Expression expression;
 	vector<string> commands = splitString(commandLine, '|');
-	for (size_t i = 0; i < commands.size(); ++i)
-	{
+	for (size_t i = 0; i < commands.size(); ++i) {
 		string& line = commands[i];
 		vector<string> args = splitString(line, ' ');
-		if (i == commands.size() - 1 && args.size() > 1 && args[args.size() - 1] == "&")
-		{
+		if (i == commands.size() - 1 && args.size() > 1 && args[args.size() - 1] == "&") {
 			expression.background = true;
 			args.resize(args.size() - 1);
 		}
-		if (i == commands.size() - 1 && args.size() > 2 && args[args.size() - 2] == ">")
-		{
+		if (i == commands.size() - 1 && args.size() > 2 && args[args.size() - 2] == ">") {
 			expression.outputToFile = args[args.size() - 1];
 			args.resize(args.size() - 2);
 		}
-		if (i == 0 && args.size() > 2 && args[args.size() - 2] == "<")
-		{
+		if (i == 0 && args.size() > 2 && args[args.size() - 2] == "<") {
 			expression.inputFromFile = args[args.size() - 1];
 			args.resize(args.size() - 2);
 		}
@@ -204,7 +197,7 @@ Expression parseCommandLine(string commandLine)
 }
 
 
-// change current directory to the users $HOME directory
+// Change current directory to the users $HOME directory
 int goHome() {
 	char* home_dir;
 	int err;
@@ -219,16 +212,14 @@ int goHome() {
 	}
 }
 
-// handle a 'cd' command, only handles a single viable path.
-int handleChangeDirectory(Command cmd)
-{
+// Handle a 'cd' command, only handles a single viable path.
+int handleChangeDirectory(Command cmd) {
 	// only cd, we chdir to $HOME.
 	if (cmd.parts.size() == 1) {
 		return goHome();
 	}
 	// we won't handle multiple arguments. Just a single directory.
-	else if (cmd.parts.size() != 2)
-	{
+	else if (cmd.parts.size() != 2) {
 		cerr << "Wrong amount of arguments for cd " << endl;
 		cerr << "Usage: cd <path>" << endl;
 		return CHANGED_DIR_FLAG;
@@ -238,31 +229,25 @@ int handleChangeDirectory(Command cmd)
 		return goHome();
 	}
 	// last case, try to go to the specified directory.
-	else if ((chdir(cmd.parts.at(1).c_str())) < 0)
-	{
+	else if ((chdir(cmd.parts.at(1).c_str())) < 0) {
 		cerr << "cd error:" << endl;
-		cerr << strerror(errno) << endl; // errorcode should be better described with this
+		cerr << strerror(errno) << endl;
 	}
 	return CHANGED_DIR_FLAG;
 }
 
 
-// handle exit and chande dir.
-int handleInternalCommands(Expression& expression)
-{
-	for (const auto& command : expression.commands)
-	{
-		for (const auto& part : command.parts)
-		{
-			if (part.compare("exit") == 0)
-			{
+// Handle exit and chande dir.
+int handleInternalCommands(Expression& expression) {
+	for (const auto& command : expression.commands) {
+		for (const auto& part : command.parts) {
+			if (part.compare("exit") == 0) {
 				cout << "Bye!" << endl;
 				flush(cout);
 				exit(0);
 			}
 		}
-		if (command.parts[0].compare("cd") == 0)
-		{
+		if (command.parts[0].compare("cd") == 0) {
 			return handleChangeDirectory(command);
 		}
 	}
@@ -270,142 +255,166 @@ int handleInternalCommands(Expression& expression)
 }
 
 
-int executeManyCommandsSinglePipe(Expression& expression)
-{
+// Execute an expression
+// - check for inputfile, get/set corresponding input filedescriptor
+// - create pipes to connect child processes from fork()
+// - get outputfile file descriptors (in overwrite mode!) when needed
+// - execute commands with execvp in a child process
+// - wait for child process pids at the end if this is not a background expression.
+int executeCommands(Expression& expression) {
 	int AMT_COMMANDS = expression.commands.size();
 	int LAST = AMT_COMMANDS - 1;
-	mode_t writePermissions = 0644;
+
 	int pipefd[2];
 	int inputfd, outputfd;
 
 	int FileInputModeFlag = O_RDONLY;
 	int FileOutputModeFlag = O_WRONLY | O_CREAT | O_EXCL | O_TRUNC;
 
+	mode_t writePermissions = 0644;
+
 	pid_t cpid;
 	pid_t cpids[AMT_COMMANDS];
 
+	// If an input file is given, create a filedescriptor and set it as input
 	if (expression.inputFromFile.empty() == 0) {
-
-		// if an input file is given, create a filedescriptor and set it as input
 		if ((inputfd = open(expression.inputFromFile.c_str(), FileInputModeFlag)) < 0) {
-			cerr << "creating a file to read from failed!" << endl;
-			cerr << strerror(errno) << endl; // errorcode should be better described with this
+			// handle errors
+			cerr << "fail when opening filedescriptor for " << expression.inputFromFile.c_str() << endl;
+			cerr << strerror(errno) << endl;
 			return -1;
 		}
 		DEBUGs("Created inputfd " << inputfd << " for " << expression.inputFromFile.c_str());
-		// TODO : what other flags are NEEDED, which ones COULD we handle?
 	}
+	// Otherwise, we set the first inputfd to 0
 	else {
 		inputfd = STDIN_FILENO;
-
 	}
 
-	for (int i = 0; i < AMT_COMMANDS; i++)
-	{
-		if (i != LAST)
-		{
-			// if there are more processes to 
-			// be started, we a pipe to
-			// redirect their I/O fds
-			if (pipe(pipefd) != 0)
-			{
-				// todo (?) better error handling
+	for (int i = 0; i < AMT_COMMANDS; i++) {
+		if (i != LAST) {
+			// if there are more processes to be started, 
+			// we create a pipe to redirect their I/Os
+			if (pipe(pipefd) != 0) {
 				cerr << "Failed to create pipe!\n";
+				cerr << strerror(errno) << endl;
 				abort();
 			}
 		}
 
-		// create child process here and catch errors
+		// create child process. 
 		if ((cpid = fork()) < 0) {
 			cerr << strerror(cpid) << "\nfork failed" << endl;
+			cerr << strerror(errno) << endl;
 			abort();
 		}
 
-		if (cpid == 0)
-		{
-			// child clause
+
+		if (cpid == 0) {
+			// child part of loop 
 			DEBUG("cpid " << getpid() << " started with input: " << inputfd);
-			if (inputfd != STDIN_FILENO)
-			{
-				// (skips first child)
-				// replace childs stdin with output from
-				// previous pipe
-				dup2(inputfd, STDIN_FILENO);
-				// clear resources
-				close(inputfd);
-			}
-
-			if (i != LAST)
-			{	// last child should output
-				// to stdout, so should not replace
-				// its stdout with any pipe.
-				// redirect their Stdout
-				// input of next pipe
-				dup2(pipefd[1], STDOUT_FILENO);
-				close(pipefd[1]);
-			}
-			else
-				//  if an outputfile is given
-				if (i == LAST && (expression.outputToFile.empty() == 0)) {
-					// open a fd for the output file in write or read/write mode
-					// not sure if its the right option to do this here, instead of
-					// above the whole for-loop
-					// flags passed are O_WRONLY | O_TRUNC | O_CREAT | O_EXCL and mode 0644
-					if ((outputfd = open(expression.outputToFile.c_str(), FileOutputModeFlag, writePermissions)) < 0) {
-						cerr << "opening file error for " << expression.outputToFile.c_str() << endl;
-						cerr << strerror(errno) << endl; // errorcode should be better described with this!
-						abort();
-					}
-					DEBUGs("Created outputfd: " << outputfd);
-					dup2(outputfd, STDOUT_FILENO);
-					close(outputfd);
+			if (inputfd != STDIN_FILENO) {
+				// replace stdin of child process with the output from previous pipe
+				// or in case of an inputfile, set that as the stdin.
+				if (dup2(inputfd, STDIN_FILENO) < 0) {
+					cerr << "dup2(inputfd, STDIN) failed: (inputfd :" << inputfd << ")" << endl;
+					cerr << strerror(errno) << endl;
+					abort();
 				}
+				// clear resources
+				if (close(inputfd) < 0) {
+					cerr << "fail when closing inputfd : " << inputfd << endl;
+					cerr << strerror(errno) << endl;
+					abort();
+				}
+			}
 
-			// close remaining resources
-			// close(inputfd);? why isnt this neededw
-			close(pipefd[1]);
-			close(pipefd[0]);
+			if (i != LAST) {
+				// (skips last child)
+				// child processes should redirect their stdout
+				// to the input end of the next pipe
+				if (dup2(pipefd[1], STDOUT_FILENO) < 0) {
+					cerr << "dup2(fd[1], STDOUT) failed: (fd[1] :" << inputfd << ")" << endl;
+					cerr << strerror(errno) << endl;
+					abort();
+				}
+				if (close(pipefd[1]) < 0) {
+					cerr << "fail when closing pipefd[1]: " << pipefd[1] << endl;
+					cerr << strerror(errno) << endl;
+					abort();
+				}
+			}
+			// if an outputfile is given
+			else if (i == LAST && (expression.outputToFile.empty() == 0)) {
+				// open a fd for the output file in write or read/write mode
+				// not sure if its the right option to do this here, instead of
+				// above the whole for-loop
+				// TODO, should this be A FULL path? or RELATIVE?
+				// TODO: Fix this, cat > bob.txt runs but it doesnt SAVE.
+				// O_WRONLY | O_TRUNC | O_CREAT | O_EXCL
+				if ((outputfd = open(expression.outputToFile.c_str(), FileOutputModeFlag, writePermissions)) < 0) {
+					cerr << "opening file error for " << expression.outputToFile.c_str() << endl;
+					cerr << strerror(errno) << endl; // errorcode should be better described with this!
+					abort();
+				}
+				DEBUGs("Created outputfd: " << outputfd);
+				if (dup2(outputfd, STDOUT_FILENO) < 0) {
+					cerr << "dup2(outputfd, STDOUT) failed: (outputfd :" << outputfd << ")" << endl;
+					cerr << strerror(errno) << endl;
+					abort();
+				}
+				if (close(outputfd) < 0) {
+					cerr << "fail when closing outputfd: " << outputfd << endl;
+					cerr << strerror(errno) << endl;
+					abort();
+				}
+			}
 
+			// Execute the commands! This uses the c++ wrapper for execvp
+			// we expect the child not to return from this, as the process
+			// should be replaced by execvp.
 			int errcode = executeCommand(expression.commands[i]);
 			if (errcode != 0) {
-				cerr << getpid() << " encountered bad command: ";
-				for (auto part : expression.commands[i].parts)
-				{
+				cerr << "Process " << getpid() << " encountered a bad command: ";
+				for (auto part : expression.commands[i].parts) {
 					cerr << part << " ";
 				}
 				cerr << endl;
+				cerr << strerror(errno) << endl;
 			}
 			abort();
-
 		}
-		else
-			// parent clause
-		{
-			// make the new input the output of the pipe we have
+		// parent part of the loop
+		else {
 
-			inputfd = pipefd[0];
-			// close the write end of this pipe
-			close(pipefd[1]);
+			// make the new input the output of the pipe we have
+			if (i != LAST) {
+				inputfd = pipefd[0];
+
+				// close the write end of this pipe
+				if (close(pipefd[1]) < 0) {
+					cerr << i << " fail when closing fd in parent: " << pipefd[1] << endl;
+					cerr << strerror(errno) << endl;
+					abort();
+				}
+			}
+
 			// administration
-				// question: should/could be skipped if exp.background=true?
+			// question: should/could be skipped if exp.background=true?
 			cpids[i] = cpid;
 		}
 	}
 
 	// wait for children to finish their processing
 	// (skips if expression.background=true)
-	if (!expression.background)
-	{
-		// waitpid(-1, NULL, 0); can we use this instead?
-		for (auto p : cpids)
-		{
-			DEBUG("waiting for pid: " << p);
-			if (p > 0)
-			{
-				waitpid(p, NULL, 0);
+	if (!expression.background) {
+		for (auto cpid : cpids) {
+			DEBUG("waiting for pid: " << cpid);
+			if (cpid != 0) {
+				// when to use WNOHANG instead of NULL?
+				waitpid(cpid, NULL, 0);
 			}
-			else
-			{
+			else {
 				cerr << "Encountered pid = 0 error" << endl;
 				return 1;
 			}
@@ -416,25 +425,22 @@ int executeManyCommandsSinglePipe(Expression& expression)
 	return 0;
 }
 
-int executeExpression(Expression& expression)
-{
+int executeExpression(Expression& expression) {
 	// Check for empty expression
-	if (expression.commands.size() == 0)
-	{
+	if (expression.commands.size() == 0) {
 		cerr << "No input command was given" << endl;
 		return EINVAL;
 	}
 
 	// // Handle internal commands (like 'cd' and 'exit')
 	int status = handleInternalCommands(expression);
-	if (status == CHANGED_DIR_FLAG) // cd happened
-	{
-		return 0;
+	if (status == CHANGED_DIR_FLAG) {
+		return 0; // cd happened
 	}
 
-	int rc = executeManyCommandsSinglePipe(expression);
+	int rc = executeCommands(expression);
 	if (rc != 0) {
-		cerr << "executeManyCommandsSinglePipe failed" << endl;
+		cerr << "executeCommands failed!" << endl;
 		cerr << strerror(rc) << endl;
 		cerr << strerror(errno) << endl;
 	}
@@ -442,10 +448,8 @@ int executeExpression(Expression& expression)
 
 }
 
-int normal(bool showPrompt)
-{
-	while (cin.good())
-	{
+int normal(bool showPrompt) {
+	while (cin.good()) {
 		string commandLine = requestCommandLine(showPrompt);
 		Expression expression = parseCommandLine(commandLine);
 		int rc = executeExpression(expression);
@@ -460,13 +464,11 @@ int normal(bool showPrompt)
 
 // unused commands below.
 
+// deprecated
 // handles only 1 simple command and exactly 0 pipes.
-int executeSingleCommandSimple(Expression& expression)
-{
-
+int executeSingleCommandSimple(Expression& expression) {
 	pid_t cpid = fork();
-	if (cpid == 0)
-	{
+	if (cpid == 0) {
 		int rc = executeCommand(expression.commands[0]);
 		// if code reaches here, error has occurred. handle and abort.
 		cerr << "executeSingleCommandSimple errored:\n"
@@ -478,20 +480,18 @@ int executeSingleCommandSimple(Expression& expression)
 }
 
 
+// deprecated
 // handles expression with exactly 1 pipe
 // see demoTwoCommands() for docstrings
-int executeDualCommandSimple(Expression& expression)
-{
+int executeDualCommandSimple(Expression& expression) {
 	int channel[2];
 
-	if (pipe(channel) != 0)
-	{
+	if (pipe(channel) != 0) {
 		cerr << "Failed to create pipe\n";
 	}
 
 	pid_t child1 = fork();
-	if (child1 == 0)
-	{
+	if (child1 == 0) {
 		dup2(channel[1], STDOUT_FILENO);
 		close(channel[1]);
 		close(channel[0]);
@@ -501,8 +501,7 @@ int executeDualCommandSimple(Expression& expression)
 	}
 
 	pid_t child2 = fork();
-	if (child2 == 0)
-	{
+	if (child2 == 0) {
 		dup2(channel[0], STDIN_FILENO);
 		close(channel[1]);
 		close(channel[0]);
@@ -519,25 +518,22 @@ int executeDualCommandSimple(Expression& expression)
 	return 0;
 }
 
-
+// DEMO COMMAND
 // framework for executing "date | tail -c 5" using raw commands
 // two processes are created, and connected to each other
-int demoTwoCommands(bool showPrompt)
-{
+int demoTwoCommands(bool showPrompt) {
 	// create communication channel shared between the two processes
 	int channel[2];
 
 	// create a pipe
 	// channel[0] refers to the read end of the pipe.
 	// channel[1] refers to the write end of the pipe.
-	if (pipe(channel) != 0)
-	{
+	if (pipe(channel) != 0) {
 		cerr << "Failed to create pipe\n";
 	}
 
 	pid_t child1 = fork();
-	if (child1 == 0)
-	{
+	if (child1 == 0) {
 		// redirect standard output (STDOUT_FILENO) to the input of the shared communication channel
 		dup2(channel[1], STDOUT_FILENO);
 		// free non used resources (because otherwise, they stay opened)
@@ -552,8 +548,7 @@ int demoTwoCommands(bool showPrompt)
 	}
 
 	pid_t child2 = fork();
-	if (child2 == 0)
-	{
+	if (child2 == 0) {
 		// redirect the output of the shared communication channel to the standard input (STDIN_FILENO).
 		dup2(channel[0], STDIN_FILENO);
 		close(channel[1]);
@@ -575,29 +570,27 @@ int demoTwoCommands(bool showPrompt)
 }
 
 
-int demoThreeCommandsOnePipe(bool showPrompt)
-{
+// DEMO COMMAND
+// note : not much error handling here!
+int demoThreeCommandsOnePipe(bool showPrompt) {
 	cout << "Demo with three commands. \n";
 	cout << "executing: date | tail -c 15 | tail c 5 \n";
 
 	// fd[0] refers to the read end of the pipe.
 	// fd[1] refers to the write end of the pipe.
 	int fd[2]; // fd == filedescriptor == int
-	int fd2[2]; //unused
 	int input = STDIN_FILENO;
 
-	if (pipe(fd) != 0)
-	{
+	if (pipe(fd) != 0) {
 		cout << "Failed to create pipe!\n";
 	}
 
 	pid_t cpid_1 = fork();
-	if (cpid_1 == 0)
-	{ // child 1 reads input from the 'date' command
+	if (cpid_1 == 0) {
+		// child 1 reads input from the 'date' command
 		Command cmd = { {string("date")} };
 		// set stdout to write end of pipe
 		dup2(fd[1], STDOUT_FILENO);
-
 		close(fd[0]);
 		close(fd[1]); // WHY
 
@@ -606,21 +599,16 @@ int demoThreeCommandsOnePipe(bool showPrompt)
 
 	cout << input << "  was input  1" << endl;
 
-
 	// keep previous pipe end
 	input = fd[0];
-	// instead of line above would this be better??
-	// input = dup(fd[0]);
-	// close(fd[0]);
 
-	close(fd[1]); // IMPORTANT.
-
-	pipe(fd); // next pipe
+	close(fd[1]); // THIS IS IMPORTANT.
+	pipe(fd);     // next pipe
 
 	pid_t cpid_2 = fork();
-	if (cpid_2 == 0)
-	{ // child 2 reads input from the previous child
-	 // and into the next pipe for the next child
+	if (cpid_2 == 0) {
+		// child 2 reads input from the previous child
+		// and into the next pipe for the next child
 		Command cmd = { {string("tail"), string("-c"), string("15")} };
 
 		dup2(input, STDIN_FILENO);
@@ -628,8 +616,6 @@ int demoThreeCommandsOnePipe(bool showPrompt)
 		close(input);
 		close(fd[0]);
 		close(fd[1]);
-		close(fd2[0]);
-		close(fd2[1]);
 		executeCommand(cmd);
 	}
 
@@ -637,24 +623,20 @@ int demoThreeCommandsOnePipe(bool showPrompt)
 	close(fd[1]);
 
 	pid_t cpid_3 = fork();
-	if (cpid_3 == 0)
-	{ // last child receives output from child 2 from the
-	 // read-end of the second pipe, fd2[0]
+	if (cpid_3 == 0) {
+		// last child receives output from child 2 from the
+		// read-end of the second pipe, fd2[0]
 		Command cmd = { {string("tail"), string("-c"), string("7")} };
 		dup2(input, STDIN_FILENO);
 		close(input);
 		close(fd[0]);
 		close(fd[1]);
-		close(fd2[0]);
-		close(fd2[1]);
 		executeCommand(cmd);
 	}
 
 	close(input);
 	close(fd[0]);
 	close(fd[1]);
-	close(fd2[0]);
-	close(fd2[1]);
 
 	waitpid(cpid_1, NULL, 0);
 	waitpid(cpid_2, NULL, 0);
@@ -665,14 +647,11 @@ int demoThreeCommandsOnePipe(bool showPrompt)
 	return 0;
 }
 
-int shell(bool showPrompt)
-{
-
-
+int shell(bool showPrompt) {
 	// main shell loop
 	return normal(showPrompt);
 
-	// available demo's
-	// return demoTwoCommands(showPrompt);
-	// return demoThreeCommandsOnePipe(showPrompt);
+	/// available demo's
+	/// return demoTwoCommands(showPrompt);
+	/// return demoThreeCommandsOnePipe(showPrompt);
 }
