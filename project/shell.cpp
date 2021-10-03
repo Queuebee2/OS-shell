@@ -24,10 +24,11 @@
 
 // thanks to https://stackoverflow.com/a/14256296/6934388
 #define DEBUGMODE 0
-#define DEBUGs(x) do {  if (DEBUGMODE>0) { std::cerr << x << std::endl; } } while (0)
-#define DEBUG(x) do {  if (DEBUGMODE>1) { std::cerr << x << std::endl; } } while (0)
+#define DEBUGs(x) do { if (DEBUGMODE>0) { std::cerr << x << std::endl; } } while (0)
+#define DEBUG(x)  do { if (DEBUGMODE>1) { std::cerr << x << std::endl; } } while (0)
 #define DEBUG2(x) do { if (DEBUGMODE>1) { std::cerr << #x << ": " << x << std::endl; } } while (0)
 
+// 🥚
 #define SHELLTHEME 0
 
 using namespace std;
@@ -200,10 +201,13 @@ Expression parseCommandLine(string commandLine) {
 // Change current directory to the users $HOME directory
 int goHome() {
 	char* home_dir;
-	int err;
+
 	home_dir = getenv("HOME");
 	if (home_dir != NULL) {
-		err = chdir(home_dir);
+		if( chdir(home_dir) < 0){
+			cerr << "Error when changing to home directory" <<endl;
+			cerr << strerror(errno) << endl;
+		}
 		return CHANGED_DIR_FLAG;
 	}
 	else {
@@ -349,8 +353,6 @@ int executeCommands(Expression& expression) {
 				// open a fd for the output file in write or read/write mode
 				// not sure if its the right option to do this here, instead of
 				// above the whole for-loop
-				// TODO, should this be A FULL path? or RELATIVE?
-				// TODO: Fix this, cat > bob.txt runs but it doesnt SAVE.
 				// O_WRONLY | O_TRUNC | O_CREAT | O_EXCL
 				if ((outputfd = open(expression.outputToFile.c_str(), FileOutputModeFlag, writePermissions)) < 0) {
 					cerr << "opening file error for " << expression.outputToFile.c_str() << endl;
@@ -375,7 +377,7 @@ int executeCommands(Expression& expression) {
 			// should be replaced by execvp.
 			int errcode = executeCommand(expression.commands[i]);
 			if (errcode != 0) {
-				cerr << "Process " << getpid() << " encountered a bad command: ";
+				cerr << "Process (pid: " << getpid() << ") encountered a bad command: ";
 				for (auto part : expression.commands[i].parts) {
 					cerr << part << " ";
 				}
@@ -412,7 +414,10 @@ int executeCommands(Expression& expression) {
 			DEBUG("waiting for pid: " << cpid);
 			if (cpid != 0) {
 				// when to use WNOHANG instead of NULL?
-				waitpid(cpid, NULL, 0);
+				if (waitpid(cpid, NULL, 0) < 0 ){
+					cerr << "waitpid error for "<< cpid << endl;
+					cerr << strerror(errno);
+				}
 			}
 			else {
 				cerr << "Encountered pid = 0 error" << endl;
