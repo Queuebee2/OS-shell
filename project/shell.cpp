@@ -375,7 +375,7 @@ int executeCommands(Expression& expression) {
 			// should be replaced by execvp.
 			int errcode = executeCommand(expression.commands[i]);
 			if (errcode != 0) {
-				cerr << "Process " << getpid() << " encountered a bad command: ";
+				cerr << "Process (pid: " << getpid() << ") encountered a bad command: ";
 				for (auto part : expression.commands[i].parts) {
 					cerr << part << " ";
 				}
@@ -412,7 +412,10 @@ int executeCommands(Expression& expression) {
 			DEBUG("waiting for pid: " << cpid);
 			if (cpid != 0) {
 				// when to use WNOHANG instead of NULL?
-				waitpid(cpid, NULL, 0);
+				if (waitpid(cpid, NULL, 0) < 0 ){
+					cerr << "waitpid error for "<< cpid << endl;
+					cerr << strerror(errno);
+				}
 			}
 			else {
 				cerr << "Encountered pid = 0 error" << endl;
