@@ -16,9 +16,6 @@ namespace {
 void Execute(std::string command, std::string expectedOutput);
 void Execute(std::string command, std::string expectedOutput, std::string expectedOutputFile, std::string expectedOutputFileContent);
 
-void Execute2(string command, std::string expectedDirectory);
-void ExecuteError(std::string command, std::string expectedOutput);
-
 TEST(Shell, splitString) {
 	std::vector<std::string> expected;
 
@@ -74,32 +71,29 @@ TEST(Shell, ExecuteChained) {
 /*==================================================*/
 
 TEST(Shell, RemovingFiles){
-    Execute2("rm doesntExist | ls", "1\n2\n3\n4\n");
-    Execute2("touch ../test-dir2/newFile | rm ../test-dir2/newFile | ls", "1\n2\n3\n4\n");
+    Execute("rm doesntExist | ls", "1\n2\n3\n4\n");
+    Execute("touch ../test-dir2/newFile | rm ../test-dir2/newFile | ls", "1\n2\n3\n4\n");
 }
 
 TEST(Shell, creatingFiles){
-	Execute2("touch ../test-dir2/newFile | ls ../test-dir2", "newFile\n");
-	Execute2("touch ../test-dir2/newFile | touch ../test-dir2/newFile | ls ../test-dir2", "newFile\n");
+	Execute("touch ../test-dir2/newFile | ls ../test-dir2", "newFile\n");
+	Execute("touch ../test-dir2/newFile | touch ../test-dir2/newFile | ls ../test-dir2", "newFile\n");
 }
 
 TEST(Shell, exitBehaviour){
-    Execute2("date | exit", "Bye!\n");
-    Execute("exit | ls", "Bye!\n");
-    Execute("ls | date | pwd | exit", "Bye!\n");
+    Execute("touch ../test-dir2/newFile | exit", "Bye!\n");
+    Execute("exit | touch ../test-dir2/newFile", "Bye!\n");
+    Execute("touch ../test-dir2/newFile | exit | touch ../test-dir2/newFile2 ", "Bye!\n");
 }
 
 TEST(Shell, backgroundCommands){
-    //To test if doing this actually only takes 5 seconds in total to see if & works
-    Execute("time sleep 5 & | sleep 5","");
+    Execute("time (sleep 5  | sleep 5 &)","0.00s user 0.00s system 0\% cpu 5.004 total");
 }
 
-//To test if the errors are done well
 TEST(Shell, goodErrors){
-	ExecuteError("","No input command was given\nmainloop received error:\n22 : Invalid argument");
-	//Can't be executed because the pid() is being printed here: Maybe remove pid(), has no value in error?
-	ExecuteError("nonExistingCmd", " encountered bad command: nonExistingCmd");
-	ExecuteError("pwd > 1", "opening file error for output\n File exists");
+	Execute("","No input command was given\nmainloop received error:\n22 : Invalid argument");
+	Execute("nonExistingCmd", "encountered bad command: nonExistingCmd");
+	Execute("pwd > 1", "opening file error for output\n File exists");
 }
 
 /*==================================================*/
@@ -155,29 +149,6 @@ void Execute(std::string command, std::string expectedOutput) {
 	std::string got = filecontents("output");
 	EXPECT_EQ(expectedOutput, got);
 }
-
-/*==================================================*/
-void ExecuteError(std::string command, std::string expectedOutput) {
-	char buffer[512];
-	std::string dir = getcwd(buffer, sizeof(buffer));
-	filewrite("input", command);
-	std::string cmdstring = std::string("cd ../test-dir; " SHELL " < '") +  dir + "/input' > '" + dir + "/output' 2> /dev/null";
-	system(cmdstring.c_str());
-	std::string got = filecontents("output");
-	EXPECT_EQ(expectedOutput, got);
-}
-
-void Execute2(string command, std::string expectedDirectory){
-    char buffer[512];
-    std::string dir = getcwd(buffer, sizeof(buffer));
-	filewrite("input", command);
-	std::string cmdstring = std::string("cd ../test-dir; " SHELL " < '") +  dir + "/input' > '" + dir + "/output' 2> /dev/null";
-    system(cmdstring.c_str());
-    std::string got = filecontents("output");
-	filewrite("input", "rm ../test-dir2/newFile");
-    EXPECT_EQ(expectedDirectory, got);
-}
-/*==================================================*/
 
 void Execute(std::string command, std::string expectedOutput, std::string expectedOutputFile, std::string expectedOutputFileContent) {
 	char buffer[512];
